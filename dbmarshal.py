@@ -1,10 +1,8 @@
 import os.path
-import dbm
 import sys
 import os
 import pickle
 import MySQLdb as mysql
-#apt-get install python-mysqldb
 
 class DBMmarshal(object):
 
@@ -257,48 +255,4 @@ class DBMmarshal(object):
         print "Migrations Directory:\t" + self.__directory
         print "\n"
         
-
-def usage():
-    print 'Usage:\ndbmarshal init hostname username password database migrations-directory alias'
-    exit(1)
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        usage()
-    elif sys.argv[1] == 'init':
-        if len(sys.argv) < 8:
-            usage()
-
-        hostname = sys.argv[2]
-        username = sys.argv[3]
-        password = sys.argv[4]
-        database = sys.argv[5]
-        directory = sys.argv[6]
-        alias = sys.argv[7]
-
-        dbm = DBMmarshal()
-        print "\ndbmarshal: Setting up alias: " + alias + "\n"
-        dbm.setup(hostname, username, password, database, directory)
-        dbm.create_log_table()
-        dbm.save_config(alias)
-        print "\nDone.\n"
-        
-    elif len(sys.argv) == 3:
-        dbm = DBMmarshal()
-        dbm.parse_config(sys.argv[1])
-
-        action = sys.argv[2]
-
-        if action == 'status':
-            dbm.status()
-
-        elif(action == 'apply'):
-            dbm.apply()
-
-        elif(action == 'describe'):
-            dbm.describe()
-
-    else:
-        usage()
-
 
