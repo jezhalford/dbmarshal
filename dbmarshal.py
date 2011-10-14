@@ -105,16 +105,15 @@ class DBMmarshal(object):
             conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
 
             cursor = conn.cursor()
-            cursor.execute('SELECT `change_number` FROM `dbmarshal_log` ORDER BY `change_number` ASC LIMIT 1')
+            cursor.execute('SELECT `change_number` FROM `dbmarshal_log` ORDER BY `change_number` DESC LIMIT 1')
             data = cursor.fetchone()
-
             cursor.close()
             conn.close()
 
             if data == None:
                 data = 0
             else:
-                data = int(data)
+                data = int(data[0])
 
             return data
 
@@ -179,8 +178,8 @@ class DBMmarshal(object):
                 script = f.read()
                 parts = script.partition('-- //@UNDO')
                 number = file.rstrip('.sql')
-                
-                migrations.append({
+                if int(number) >= start:
+                    migrations.append({
                                 'do' : parts[0],
                                 'undo' : parts[2],
                                 'name' : file,
@@ -238,7 +237,13 @@ class DBMmarshal(object):
         """
         applied = self.__applied_status()
         outstanding_migrations = self.__get_migrations(applied+1)
-        self.__run_scripts(outstanding_migrations, 'do')
+
+        if len(outstanding_migrations) == 0:
+            print "\ndbmarshal: There are no undeployed database migrations available.\n"
+        else:
+            print "\ndbmarshal: Applying database migrations.\n"
+            self.__run_scripts(outstanding_migrations, 'do')
+            print "\nDone.\n"
 
     def describe(self):
         """
