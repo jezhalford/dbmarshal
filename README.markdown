@@ -1,13 +1,15 @@
 dbmarshal
 =========
 
-dbmarshal is a dbdeploy inspired database migration tool. It supports mySQL, makes use of transactions, and is written in python.
+dbmarshal is a dbdeploy inspired database migration tool. It supports mySQL, makes use of
+transactions, and is written in python.
 
 
 Requirements
 ------------
 
-The following describes how to start using dbmarshal in Ubuntu. I imagine these steps are broadly similar for other linux flavours.
+The following describes how to start using dbmarshal in Ubuntu. I imagine these steps are broadly
+similar for other linux flavours.
 
 You will need...
 
@@ -21,7 +23,8 @@ The following installs Python along with a popular mySQL library.
 Configuration
 -------------
 
-Clone or otherwise acquire the dbmarshal source. Life will become easier if you add this directory to your PATH. Assuming you have done this, and with the following information to hand...
+Clone or otherwise acquire the dbmarshal source. Life will become easier if you add this directory
+to your PATH. Assuming you have done this, and with the following information to hand...
 
 
     hostname  : The hostname of the database server you want to work with.
@@ -39,7 +42,8 @@ Clone or otherwise acquire the dbmarshal source. Life will become easier if you 
 
     ~/.dbmarshal/<alias>
 
-...that will store the information you speicify. It will also create a new table in your database called `dbmarshal_log` that will be used to keep track of your migrations.
+...that will store the information you speicify. It will also create a new table in your database
+called `dbmarshal_log` that will be used to keep track of your migrations.
 
 
 Using dbmarshal
@@ -62,12 +66,23 @@ Assuming you have done the above configuration:
 Migration Files
 ---------------
 
-These should be named `x.sql`, where `x` is the number of the migration, e.g. `1.sql`, `2.sql`, etc. Each migration should contain the SQL required to make the migration happen, followed by `-- //@UNDO`, followed by the SQL required to undo the migration. (Undoing isn't actually supported by dbmarshal yet, but hopefully it will be soon.) The `-- //@UNDO` line is REQUIRED - dbmarshal will break if it is not there.
+These should be named `x.sql`, where `x` is the number of the migration, e.g. `1.sql`, `2.sql`,
+etc. Each migration should contain the SQL required to make the migration happen, followed by
+`-- //@UNDO`, followed by the SQL required to undo the migration. (Undoing isn't actually supported
+by dbmarshal yet, but hopefully it will be soon.)
+The `-- //@UNDO` line is REQUIRED - dbmarshal will break if it is not there.
 
 Transactions
 ------------
 
-Each time you run `dbmarshal <alias> apply` a new transaction is started. If any one of the migrations that are due to be deployed in that session fails, the transaction will be rolled back, i.e. *None of them will be applied*.
+Each time you run `dbmarshal <alias> apply` a new transaction is started. If any one of the
+migrations that are due to be deployed in that session fails, the transaction will be rolled back,
+ i.e. *None of them will be applied*.
+However, mySQL does not support transactions for DDL operations, i.e. `CREATE TABLE`, `ALTER TABLE`,
+etc. If the migration set contains any such operations the rollback will fail. You will then end up
+with an entry in your log table that has a `started` time but no `completed` time.
+
+One day something clever involving undos might solve this problem.
 
 If a migration fails the error message returned by mySQL will be displayed in your terminal.
 

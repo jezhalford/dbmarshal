@@ -192,11 +192,7 @@ class DBMmarshal(object):
         """
         try:
             conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
-        except mysql.Error, e:
-            print "Could not connect to database %d: %s" % (e.args[0],e.args[1])
-            sys.exit(1)
-
-        try:
+            
             cursor = conn.cursor()
 
             for migration in migrations:
@@ -209,25 +205,25 @@ class DBMmarshal(object):
                 log_update_two = """
                 UPDATE `dbmarshal_log` SET `completed` = NOW() WHERE `change_number`= %d;
                 """ % (int(migration['number']))
-
                 cursor.execute(log_update_one)
                 cursor.execute(migration[type])
                 cursor.execute(log_update_two)
 
-        except mysql.Error, e:
-            print "Error %d: %s" % (e.args[0],e.args[1])
-            conn.rollback()
-            sys.exit(1)
 
-        try:
             conn.commit()
 
-            cursor.close()
-            conn.close()
         except mysql.Error, e:
             print "Error %d: %s" % (e.args[0],e.args[1])
-            conn.rollback()
+            try:
+                print '\nSome of the migrations seem to have failed. Those that can be rolled back will be.\n'
+                conn.rollback()
+            except  mysql.Error, e:
+                print "Error %d: %s" % (e.args[0],e.args[1])
+
             sys.exit(1)
+
+        cursor.close()
+        conn.close()
         
     def apply(self):
         """
@@ -254,5 +250,4 @@ class DBMmarshal(object):
         print "Database:\t\t" + self.__database
         print "Migrations Directory:\t" + self.__directory
         print "\n"
-        
 
