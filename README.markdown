@@ -49,7 +49,7 @@ Assuming you have done the above configuration:
 
     dbmarshal <alias> describe
 
-...eill display the settings you previously entered.
+...will display the settings you previously entered.
 
     dbmarshal <alias> status
 
