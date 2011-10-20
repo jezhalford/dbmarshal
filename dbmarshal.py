@@ -88,7 +88,8 @@ class DBMarshal(object):
         for message in messages:
             print "\t" + message
 
-        print "\n"
+        if heading is not None:
+            print "\n"
 
     def __get_revisions_dir(self):
         return self.__directory + '/revisions'
@@ -179,13 +180,13 @@ class DBMarshal(object):
             if file.endswith('.sql'):
                 f = open(os.path.realpath(self.__get_statics_dir() + '/' + file), 'r')
                 script = f.read()
-                scripts.append(script)
+                scripts.append({'script' : script, 'file' : file})
                 
         return scripts
 
     def __get_statics(self):
         """
-        Gets a list of any triggers, stored procedures or views that exist on the database.
+        Gets a list of any triggers or stored procedures that exist on the database.
         """
         try:
 
@@ -204,12 +205,7 @@ class DBMarshal(object):
                                 WHERE TRIGGER_SCHEMA = '%s'""" % (self.__database))
             triggers = cursor.fetchall()
 
-            #views
-            cursor.execute("""SELECT V.TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS V
-                                WHERE V.TABLE_SCHEMA = '%s'""" % (self.__database))
-            views = cursor.fetchall()
-
-            return {'triggers' : triggers, 'sprocs' : sprocs, 'views' : views}
+            return {'triggers' : triggers, 'sprocs' : sprocs}
             
         except mysql.Error, e:
             print "Error %d: %s" % (e.args[0],e.args[1])
@@ -223,12 +219,13 @@ class DBMarshal(object):
 
     def __drop_statics(self):
         """
-        Drops any triggers, stored procedures or views that exist on the database.
+        Drops any triggers or stored procedures that exist on the database.
         """
         try:
 
             conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
-
+            cursor = conn.cursor()
+            
             statics = self.__get_statics()
 
             for sproc in statics['sprocs']:
@@ -236,15 +233,13 @@ class DBMarshal(object):
 
             for trigger in statics['triggers']:
                 cursor.execute('DROP TRIGGER %s' % trigger[0])
-
-            for view in statics['views']:
-                cursor.execute('DROP VIEW  %s' % view[0])
             
             cursor.close()
 
             conn.commit()
 
-            return {'triggers' : len(triggers), 'sprocs' : len(sprocs), 'vies' : len(views)}
+            return {'triggers' : len(statics['triggers']),
+                    'sprocs' : len(statics['sprocs'])}
 
         except mysql.Error, e:
             print "Error %d: %s" % (e.args[0],e.args[1])
@@ -257,22 +252,35 @@ class DBMarshal(object):
 
     def __create_statics(self):
         """
-        Creates triggers, stored procedures and views from the static migrations.
+        Creates triggers and stored procedures from the static migrations.
         """
         try:
             conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
 
             cursor = conn.cursor()
 
+            feedback = {'sprocs' : 0, 'triggers' : 0}
+
             for script in self.__get_static_scripts():
-                cursor.execute(script)
+                if script['file'].startswith('trigger__'):
+                    feedback['triggers'] += 1
+                elif script['file'].startswith('sproc__'):
+                    feedback['sprocs'] += 1
+                else:
+                    print "Found a static migration file called '" + script['file'] + "'. Static migrations must start with trigger__ or sproc__."
+                    exit(1)
+
+                cursor.execute(script['script'])
             
             cursor.close()
 
             conn.commit()
 
+            return feedback
+
         except mysql.Error, e:
             print "Error %d: %s" % (e.args[0],e.args[1])
+            print "Failed to run static migration '" + script['file'] + "'."
             print '\nFailed to create static objects, rolling back.\n'
             conn.rollback()
             sys.exit(1)
@@ -320,7 +328,7 @@ class DBMarshal(object):
 
     def export_statics(self):
         """
-        Create scripts for  sprocs, triggers and views that currently exist into the database.
+        Create scripts for sprocs and triggers that currently exist into the database.
         """
         try:
 
@@ -346,14 +354,6 @@ class DBMarshal(object):
                 f = open(self.__get_statics_dir() + '/trigger__' + trigger_info[0] + '.sql' , 'w')
                 f.write(trigger_info[2])
                 f.close()
-#
-            for view in statics['views']:
-                cursor.execute('SHOW CREATE VIEW %s' % view[0])
-                view_info = cursor.fetchone()
-
-                f = open(self.__get_statics_dir() + '/view__' + view_info[0] + '.sql' , 'w')
-                f.write(view_info[1])
-                f.close()
 
 
         except mysql.Error, e:
@@ -374,18 +374,17 @@ class DBMarshal(object):
         outstanding_migrations = self.__get_revisions(applied+1)
 
         DBMarshal.talk("Running migrations...",
-            ["Dropping and restoring triggers, stored procedures and views."])
+            ["Dropping and restoring triggers and stored procedures."])
 
         drop_feedback = self.__drop_statics()
 
-        DBMarshal.talk(None, [("Dropped %d stored procedures, %s triggers and %s views" %
-                     (drop_feedback['sprocs'], drop_feedback['triggers'], drop_feedback['views']))])
+        DBMarshal.talk(None, [("Dropped %d stored procedures and %s triggers" %
+                     (drop_feedback['sprocs'], drop_feedback['triggers']))])
 
         create_feedback = self.__create_statics()
 
-        DBMarshal.talk(None, [("Created %d stored procedures, %s triggers and %s views" %
-                     (create_feedback['sprocs'],
-                            create_feedback['triggers'], create_feedback['views'])), 'Done'])
+        DBMarshal.talk(None, [("Created %d stored procedures and %s triggers." %
+                     (create_feedback['sprocs'], create_feedback['triggers'])), 'Done'])
 
         if len(outstanding_migrations) == 0:
             DBMarshal.talk(None, ['There are no undeployed revisions available.'])
@@ -454,7 +453,7 @@ class DBMarshal(object):
 
     def save_config(self, alias):
         """
-        Saves the current config in the config root, under the specified alias.
+        Saves the current config under a new specified alias.
         """
 
         path = DBMarshal.get_config_root() + '/' + alias
