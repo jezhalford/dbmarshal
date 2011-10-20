@@ -34,13 +34,13 @@ class DBMarshal(object):
         """
         Sets up and returns a new dbmarshal with all the info it needs.
         """
-        print "\ndbmarshal: Setting up alias: " + alias + "\n"
+        DBMarshal.talk("Setting up alias: " + alias)
 
         dbm = DBMarshal(hostname, username, password, database, os.path.abspath(directory))
         dbm.save_config(alias)
         dbm.create_log_table()
 
-        print "\nDone.\n"
+        DBMarshal.talk("Done.")
 
         return dbm
 
@@ -50,8 +50,6 @@ class DBMarshal(object):
         Takes a config file (from the supplied alias) and puts the settings from it into dbmarshal.
         """
         config = DBMarshal.get_config_root() + '/' + alias
-
-        print config
 
         if os.path.exists(config):
 
@@ -80,6 +78,17 @@ class DBMarshal(object):
            os.makedirs(config_root)
 
         return config_root
+
+    @staticmethod
+    def talk(heading, messages = []):
+
+        if heading is not None:
+            print "\ndbmarshal: " + heading
+
+        for message in messages:
+            print "\t" + message
+
+        print "\n"
 
     def __get_revisions_dir(self):
         return self.__directory + '/revisions'
@@ -202,13 +211,13 @@ class DBMarshal(object):
             views = cursor.fetchall()
 
             for sproc in sprocs:
-                print ('DROP PROCEDURE %s' % sproc[0])
+                cursor.execute('DROP PROCEDURE %s' % sproc[0])
 
             for trigger in triggers:
-                print ('DROP TRIGGER %s' % trigger[0])
+                cursor.execute('DROP TRIGGER %s' % trigger[0])
 
             for view in views:
-                print ('DROP VIEW  %s' % view[0])
+                cursor.execute('DROP VIEW  %s' % view[0])
             
             cursor.close()
 
@@ -260,7 +269,7 @@ class DBMarshal(object):
             cursor = conn.cursor()
 
             for migration in migrations:
-                print "Applying migration: " + migration['name'] + "...\n"
+                DBMarshal.talk(None, ["Applying migration: " + migration['name'] + "..."])
 
                 log_update_one = """
                 INSERT INTO `dbmarshal_log` SET `change_number` = %d, `description` = '%s';
@@ -287,7 +296,7 @@ class DBMarshal(object):
 
         cursor.close()
         conn.close()
-        
+
     def apply(self):
         """
         Applies outstanding migrations to the database.
@@ -295,38 +304,38 @@ class DBMarshal(object):
         applied = self.__applied_status()
         outstanding_migrations = self.__get_revisions(applied+1)
 
-        print "\ndbmarshal: Dropping and restoring triggers, stored procedures and views.\n"
+        DBMarshal.talk("Running migrations...",
+            ["Dropping and restoring triggers, stored procedures and views."])
+
         drop_feedback = self.__drop_statics()
 
-        print "\ndbmarshal: Dropped " + str(drop_feedback['sprocs']) + " stored procedures.\n"
-        print "\ndbmarshal: Dropped " + str(drop_feedback['triggers']) + " triggers.\n"
-        print "\ndbmarshal: Dropped " + str(drop_feedback['views']) + " views.\n"
+        DBMarshal.talk(None, [("Dropped %d stored procedures, %s triggers and %s views" %
+                     (drop_feedback['sprocs'], drop_feedback['triggers'], drop_feedback['views']))])
 
         create_feedback = self.__create_statics()
-        print "\ndbmarshal: Created " + str(create_feedback['sprocs']) + " stored procedures.\n"
-        print "\ndbmarshal: Created " + str(create_feedback['triggers']) + " triggers.\n"
-        print "\ndbmarshal: Created " + str(create_feedback['views']) + " views.\n"
 
-        print "\nDone.\n"
+        DBMarshal.talk(None, [("Created %d stored procedures, %s triggers and %s views" %
+                     (create_feedback['sprocs'],
+                            create_feedback['triggers'], create_feedback['views'])), 'Done'])
 
         if len(outstanding_migrations) == 0:
-            print "\ndbmarshal: There are no undeployed revisions available.\n"
+            DBMarshal.talk(None, ['There are no undeployed revisions available.'])
         else:
-            print "\ndbmarshal: Applying revisions.\n"
+            DBMarshal.talk(None, ['Applying revisions'])
             self.__run_scripts(outstanding_migrations)
-            print "\nDone.\n"
+            DBMarshal.talk(None, ['Done'])
 
     def describe(self):
         """
         Explain the currently loaded settings.
         """
-        print "\ndbmarshal: Your alias results in the following settings:\n"
-        print "\tHostname:\t\t" + self.__hostname
-        print "\tUsername:\t\t" + self.__username
-        print "\tPassword:\t\t" + '*' * len(self.__password)
-        print "\tDatabase:\t\t" + self.__database
-        print "\tMigrations Directory:\t" + self.__directory
-        print "\n"
+        DBMarshal.talk('Your alias results in the following settings:', [
+            "Hostname:\t\t" + self.__hostname,
+            "Username:\t\t" + self.__username,
+            "Password:\t\t" + '*' * len(self.__password),
+            "Database:\t\t" + self.__database,
+            "Migrations Directory:\t" + self.__directory,
+        ])
 
     def status(self):
         """
@@ -338,24 +347,23 @@ class DBMarshal(object):
 
         statics = self.__static_status()
 
-        print "\ndbmarshal: Status..."
+        messages = []
 
         if applied == 0:
-            print "\n\tThere is no record of any revisions having been applied to this database."
+            messages.append("There is no record of any revisions having been applied to this database.")
         else:
-            print "\n\tDatabase is at revision number " + str(applied) + "."
+            messages.append("Database is at revision number " + str(applied) + ".")
 
         if available > 0:
-            print "\n\tRevisions up to number " + str(available) + " are available."
+            messages.append("Revisions up to number " + str(available) + " are available.")
         else:
-            print "\n\tNo revisions are available to apply."
+            messages.append("No revisions are available to apply.")
 
+        messages.append("There are " + str(available - applied) + " revisions ready to apply.")
 
-        print "\n\tThere are " + str(available - applied) + " revisions ready to apply."
+        messages.append("There are " + str(statics) + " static migrations to run.")
 
-        print "\n\tThere are " + str(statics) + " static migrations to run."
-
-        print "\n"
+        DBMarshal.talk('Status...', messages)
 
     def create_log_table(self):
         """
