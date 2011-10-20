@@ -3,7 +3,7 @@ import os
 import pickle
 import MySQLdb as mysql
 
-class DBMmarshal(object):
+class DBMarshal(object):
 
     __log_table_sql = """CREATE TABLE IF NOT EXISTS `dbmarshal_log` (
           `change_number` bigint(20) NOT NULL PRIMARY KEY,
@@ -11,8 +11,64 @@ class DBMmarshal(object):
           `completed` timestamp NULL DEFAULT NULL,
           `description` varchar(500) NOT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1"""
-    
-    def __get_config_root(self):
+
+    def __init__(self, hostname, username, password, database, directory):
+        """
+        Constructor
+        """
+        self.__hostname = hostname
+        self.__username = username
+        self.__password = password
+        self.__database = database
+        self.__directory = os.path.abspath(directory)
+
+    @staticmethod
+    def factory(hostname, username, password, database, directory):
+        """
+        Sets up and returns a new dbmarshal with all the info it needs.
+        """
+        return DBMarshal(hostname, username, password, database, os.path.abspath(directory))
+
+    @staticmethod
+    def create_alias(hostname, username, password, database, directory, alias):
+        """
+        Sets up and returns a new dbmarshal with all the info it needs.
+        """
+        print "\ndbmarshal: Setting up alias: " + alias + "\n"
+
+        dbm = DBMarshal(hostname, username, password, database, os.path.abspath(directory))
+        dbm.save_config(alias)
+        dbm.create_log_table()
+
+        print "\nDone.\n"
+
+        return dbm
+
+    @staticmethod
+    def from_alias(alias):
+        """
+        Takes a config file (from the supplied alias) and puts the settings from it into dbmarshal.
+        """
+        config = DBMarshal.get_config_root() + '/' + alias
+
+        print config
+
+        if os.path.exists(config):
+
+            f = open(config, 'r')
+
+            data = pickle.load(f)
+
+            return DBMarshal.factory(data['hostname'], data['username'],
+                                        data['password'], data['database'], data['directory'])
+
+        else:
+            print '\nError: Could not find a valid config file called "' + alias + '"'
+
+            f.close()
+
+    @staticmethod
+    def get_config_root():
         """
         Returns the directory in which config files should be stored.
         """
@@ -24,6 +80,12 @@ class DBMmarshal(object):
            os.makedirs(config_root)
 
         return config_root
+
+    def __get_revisions_dir(self):
+        return self.__directory + '/revisions'
+
+    def __get_statics_dir(self):
+        return self.__directory + '/statics'
 
     def create_log_table(self):
         """
@@ -40,7 +102,7 @@ class DBMmarshal(object):
             conn.close()
 
         except mysql.Error, e:
-            print "Error %d: %s" % (e.args[0],e.args[1])
+            print "Error %d %s" % (e.args[0],e.args[1])
             sys.exit(1)
 
     def save_config(self, alias):
@@ -48,7 +110,7 @@ class DBMmarshal(object):
         Saves the current config in the config root, under the specified alias.
         """
 
-        path = self.__get_config_root() + '/' + alias
+        path = DBMarshal.get_config_root() + '/' + alias
         
         f = open(path, 'w')
 
@@ -64,36 +126,6 @@ class DBMmarshal(object):
 
         f.close()
 
-    def setup(self, hostname, username, password, database, directory):
-        """
-        Sets up dbmarshal with all the info it needs.
-        """
-        self.__hostname = hostname
-        self.__username = username
-        self.__password = password
-        self.__database = database
-        self.__directory = os.path.abspath(directory)
-
-    def parse_config(self, alias):
-        """
-        Takes a config file (from the supplied alias) and puts the settings from it into dbmarshal.
-        """
-        config = self.__get_config_root() + '/' + alias
-
-        if os.path.exists(config):
-
-            f = open(config, 'r')
-
-            try:
-                data = pickle.load(f)
-
-                self.setup(data['hostname'], data['username'], data['password'], data['database'], data['directory'])
-
-            except Exception:
-                print '\nError: Could not find a valid config file called "' + alias + '"'
-
-            f.close()
-            
     def __applied_status(self):
         """
         Returns the migration number that was most recently applied to the database.
