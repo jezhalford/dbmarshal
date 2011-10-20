@@ -5,10 +5,7 @@ dbmarshal
 
 dbmarshal is a migration tool for mySQL databases.
 
-Theory
-------
-
-dbmarshal works a lot like dbdeploy. It creates a log table in your database that it uses to keep
+It works a lot like dbdeploy. It creates a log table in your database that it uses to keep
 track of what revision number the database is at. It allows you to store database revisions as
 numerically named SQL files and, when asked, will bring your database up to date by running
 any such migrations that have not yet been applied.
@@ -86,14 +83,28 @@ Assuming you have done the above configuration:
 
 ...will apply any waiting migrations that have yet to be applied.
 
+    dbmarshal <alias> export_statics
+
+...will create correctly named static migration files for all stored procedures and triggers in your
+database.
+
+    dbmarshal <alias> create_log_table
+
+...will create a blank log table in your database. This is done automatically when you
+`dbmarshal init`.
+
+    dbmarshal <alias> save_config <new_alias>
+
+...will copy the settings saved under `<alias>` to a `<new_alias>`.
+
 Migration Files
 ---------------
 
 There are two kinds of migrations that dbmarshal is willing to deal with. *Static Migrations*,
-and *Revisions*. These will need to be placed into to directories under your migration files path.
-Your migrations directory therefore should look like this -
+and *Revisions*. These will need to be placed into two directories under your migration files path.
+Your migrations directory therefore should be structured like this -
 
-    migrations/
+    my_migrations_directory/
         statics/
         revisions/
 
