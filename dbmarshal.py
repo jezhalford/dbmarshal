@@ -87,45 +87,6 @@ class DBMarshal(object):
     def __get_statics_dir(self):
         return self.__directory + '/statics'
 
-    def create_log_table(self):
-        """
-        Creates the log table.
-        """
-        try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
-
-            cursor = conn.cursor()
-            cursor.execute(self.__log_table_sql)
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-        except mysql.Error, e:
-            print "Error %d %s" % (e.args[0],e.args[1])
-            sys.exit(1)
-
-    def save_config(self, alias):
-        """
-        Saves the current config in the config root, under the specified alias.
-        """
-
-        path = DBMarshal.get_config_root() + '/' + alias
-        
-        f = open(path, 'w')
-
-        config = {
-            'hostname' : self.__hostname,
-            'username' : self.__username,
-            'password' : self.__password,
-            'database' : self.__database,
-            'directory' : os.path.abspath(self.__directory),
-        }
-
-        pickle.dump(config, f)
-
-        f.close()
-
     def __applied_status(self):
         """
         Returns the migration number that was most recently applied to the database.
@@ -155,7 +116,7 @@ class DBMarshal(object):
         """
         Returns the highest available migration number in the migrations directory.
         """
-        listing = os.listdir(self.__directory)
+        listing = os.listdir(self.__get_revisions_dir())
 
         highest = 0
 
@@ -167,57 +128,129 @@ class DBMarshal(object):
 
         return highest
 
-    def status(self):
+    def __static_status(self):
         """
-        Tells you all about where you are with migrations.
+        Returns a count of static scripts that need to be applied.
         """
-        applied = self.__applied_status()
+        return len(os.listdir(self.__get_statics_dir()))
 
-        available = self.__available_status()
-
-        if applied == 0:
-            print "\nThere is no record of any migrations having been applied to this database."
-        else:
-            print "\nDatabase is at migration number " + str(applied) + "."
-
-        if available > 0:
-            print "\nMigrations up to number " + str(available) + " are available."
-        else:
-            print "\nNo migrations are available to apply."
-
-
-        print "\nThere are " + str(available - applied) + " migrations ready to apply."
-
-        print "\n"
-
-    def __get_migrations(self, start):
+    def __get_revisions(self, start):
         """
-        Returns all of the available migrations from a given start (inclusive) to the end, in
+        Returns all of the available revisions from a given start (inclusive) to the end, in
         ascending order.
         """
-        migrations = []
+        revisions = []
 
-        listing = os.listdir(self.__directory)
+        listing = os.listdir(self.__get_revisions_dir())
 
         listing.sort(key=lambda number: int(number.rstrip('.sql')))
 
         for file in listing:
             if file.endswith('.sql'):
-                f = open(os.path.realpath(self.__directory + '/' + file), 'r')
+                f = open(os.path.realpath(self.__get_revisions_dir() + '/' + file), 'r')
                 script = f.read()
-                parts = script.partition('-- //@UNDO')
                 number = file.rstrip('.sql')
                 if int(number) >= start:
-                    migrations.append({
-                                'do' : parts[0],
-                                'undo' : parts[2],
+                    revisions.append({
+                                'script' : script,
                                 'name' : file,
                                 'number' : number
                                 })
-        return migrations
+        return revisions
+
+    def __get_static_scripts(self):
+        """
+        Returns all of the static migration scripts.
+        """
+        scripts = []
+
+        listing = os.listdir(self.__get_statics_dir())
+
+        for file in listing:
+            if file.endswith('.sql'):
+                f = open(os.path.realpath(self.__get_statics_dir() + '/' + file), 'r')
+                script = f.read()
+                scripts.append(script)
+                
+        return scripts
                 
 
-    def __run_scripts(self, migrations, type):
+    def __drop_statics(self):
+        """
+        Drops any triggers, stored procedures or views that exist on the database.
+        """
+        try:
+
+            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+
+            # sprocs
+            cursor = conn.cursor()
+            cursor.execute("""SELECT R.SPECIFIC_NAME FROM INFORMATION_SCHEMA.ROUTINES R
+                                WHERE R.ROUTINE_SCHEMA = '%s' AND R.ROUTINE_TYPE = 'PROCEDURE'"""
+                                % (self.__database))
+                                
+            sprocs = cursor.fetchall()
+
+            #triggers
+            cursor.execute("""SELECT T.TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS T
+                                WHERE TRIGGER_SCHEMA = '%s'""" % (self.__database))
+            triggers = cursor.fetchall()
+
+            #views
+            cursor.execute("""SELECT V.TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS V
+                                WHERE V.TABLE_SCHEMA = '%s'""" % (self.__database))
+            views = cursor.fetchall()
+
+            for sproc in sprocs:
+                print ('DROP PROCEDURE %s' % sproc[0])
+
+            for trigger in triggers:
+                print ('DROP TRIGGER %s' % trigger[0])
+
+            for view in views:
+                print ('DROP VIEW  %s' % view[0])
+            
+            cursor.close()
+
+            conn.commit()
+
+            return {'triggers' : len(triggers), 'sprocs' : len(sprocs), 'vies' : len(views)}
+
+        except mysql.Error, e:
+            print "Error %d: %s" % (e.args[0],e.args[1])
+            print '\nFailed to drop static objects, rolling back.\n'
+            conn.rollback()
+            sys.exit(1)
+
+        cursor.close()
+        conn.close()
+
+    def __create_statics(self):
+        """
+        Creates triggers, stored procedures and views from the static migrations.
+        """
+        try:
+            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+
+            cursor = conn.cursor()
+
+            for script in self.__get_static_scripts():
+                cursor.execute(script)
+            
+            cursor.close()
+
+            conn.commit()
+
+        except mysql.Error, e:
+            print "Error %d: %s" % (e.args[0],e.args[1])
+            print '\nFailed to create static objects, rolling back.\n'
+            conn.rollback()
+            sys.exit(1)
+
+        cursor.close()
+        conn.close()
+
+    def __run_scripts(self, migrations):
         """
         Runs scripts of the specified type in a transaction
         """
@@ -237,9 +270,8 @@ class DBMarshal(object):
                 UPDATE `dbmarshal_log` SET `completed` = NOW() WHERE `change_number`= %d;
                 """ % (int(migration['number']))
                 cursor.execute(log_update_one)
-                cursor.execute(migration[type])
+                cursor.execute(migration['script'])
                 cursor.execute(log_update_two)
-
 
             conn.commit()
 
@@ -261,24 +293,106 @@ class DBMarshal(object):
         Applies outstanding migrations to the database.
         """
         applied = self.__applied_status()
-        outstanding_migrations = self.__get_migrations(applied+1)
+        outstanding_migrations = self.__get_revisions(applied+1)
+
+        print "\ndbmarshal: Dropping and restoring triggers, stored procedures and views.\n"
+        drop_feedback = self.__drop_statics()
+
+        print "\ndbmarshal: Dropped " + str(drop_feedback['sprocs']) + " stored procedures.\n"
+        print "\ndbmarshal: Dropped " + str(drop_feedback['triggers']) + " triggers.\n"
+        print "\ndbmarshal: Dropped " + str(drop_feedback['views']) + " views.\n"
+
+        create_feedback = self.__create_statics()
+        print "\ndbmarshal: Created " + str(create_feedback['sprocs']) + " stored procedures.\n"
+        print "\ndbmarshal: Created " + str(create_feedback['triggers']) + " triggers.\n"
+        print "\ndbmarshal: Created " + str(create_feedback['views']) + " views.\n"
+
+        print "\nDone.\n"
 
         if len(outstanding_migrations) == 0:
-            print "\ndbmarshal: There are no undeployed database migrations available.\n"
+            print "\ndbmarshal: There are no undeployed revisions available.\n"
         else:
-            print "\ndbmarshal: Applying database migrations.\n"
-            self.__run_scripts(outstanding_migrations, 'do')
+            print "\ndbmarshal: Applying revisions.\n"
+            self.__run_scripts(outstanding_migrations)
             print "\nDone.\n"
 
     def describe(self):
         """
         Explain the currently loaded settings.
         """
-        print "\nYour alias results in the following settings:\n"
-        print "Hostname:\t\t" + self.__hostname
-        print "Username:\t\t" + self.__username
-        print "Password:\t\t" + '*' * len(self.__password)
-        print "Database:\t\t" + self.__database
-        print "Migrations Directory:\t" + self.__directory
+        print "\ndbmarshal: Your alias results in the following settings:\n"
+        print "\tHostname:\t\t" + self.__hostname
+        print "\tUsername:\t\t" + self.__username
+        print "\tPassword:\t\t" + '*' * len(self.__password)
+        print "\tDatabase:\t\t" + self.__database
+        print "\tMigrations Directory:\t" + self.__directory
         print "\n"
 
+    def status(self):
+        """
+        Tells you all about where you are with migrations.
+        """
+        applied = self.__applied_status()
+
+        available = self.__available_status()
+
+        statics = self.__static_status()
+
+        print "\ndbmarshal: Status..."
+
+        if applied == 0:
+            print "\n\tThere is no record of any revisions having been applied to this database."
+        else:
+            print "\n\tDatabase is at revision number " + str(applied) + "."
+
+        if available > 0:
+            print "\n\tRevisions up to number " + str(available) + " are available."
+        else:
+            print "\n\tNo revisions are available to apply."
+
+
+        print "\n\tThere are " + str(available - applied) + " revisions ready to apply."
+
+        print "\n\tThere are " + str(statics) + " static migrations to run."
+
+        print "\n"
+
+    def create_log_table(self):
+        """
+        Creates the log table.
+        """
+        try:
+            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+
+            cursor = conn.cursor()
+            cursor.execute(self.__log_table_sql)
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+        except mysql.Error, e:
+            print "Error %d %s" % (e.args[0],e.args[1])
+            sys.exit(1)
+
+    def save_config(self, alias):
+        """
+        Saves the current config in the config root, under the specified alias.
+        """
+
+        path = DBMarshal.get_config_root() + '/' + alias
+
+        f = open(path, 'w')
+
+        config = {
+            'hostname' : self.__hostname,
+            'username' : self.__username,
+            'password' : self.__password,
+            'database' : self.__database,
+            'directory' : os.path.abspath(self.__directory),
+        }
+
+        pickle.dump(config, f)
+
+        f.close()
+        
