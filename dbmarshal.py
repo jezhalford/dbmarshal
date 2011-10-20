@@ -88,9 +88,6 @@ class DBMarshal(object):
         for message in messages:
             print "\t" + message
 
-        if heading is not None:
-            print "\n"
-
     def __get_revisions_dir(self):
         return self.__directory + '/revisions'
 
@@ -330,6 +327,9 @@ class DBMarshal(object):
         """
         Create scripts for sprocs and triggers that currently exist into the database.
         """
+
+        DBMarshal.talk('export_statics', ["Exporting statics to '%s'." % self.__get_statics_dir()])
+
         try:
 
             conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
@@ -355,6 +355,7 @@ class DBMarshal(object):
                 f.write(trigger_info[2])
                 f.close()
 
+            DBMarshal.talk(None, ['Done'])
 
         except mysql.Error, e:
             print "Error %d: %s" % (e.args[0],e.args[1])
@@ -373,18 +374,18 @@ class DBMarshal(object):
         applied = self.__applied_status()
         outstanding_migrations = self.__get_revisions(applied+1)
 
-        DBMarshal.talk("Running migrations...",
-            ["Dropping and restoring triggers and stored procedures."])
+        DBMarshal.talk("apply",
+            ["Running migration scripts..."])
 
         drop_feedback = self.__drop_statics()
 
-        DBMarshal.talk(None, [("Dropped %d stored procedures and %s triggers" %
+        DBMarshal.talk(None, [("Dropped %d stored procedures and %s triggers." %
                      (drop_feedback['sprocs'], drop_feedback['triggers']))])
 
         create_feedback = self.__create_statics()
 
         DBMarshal.talk(None, [("Created %d stored procedures and %s triggers." %
-                     (create_feedback['sprocs'], create_feedback['triggers'])), 'Done'])
+                     (create_feedback['sprocs'], create_feedback['triggers']))])
 
         if len(outstanding_migrations) == 0:
             DBMarshal.talk(None, ['There are no undeployed revisions available.'])
@@ -420,7 +421,7 @@ class DBMarshal(object):
         if applied == 0:
             messages.append("There is no record of any revisions having been applied to this database.")
         else:
-            messages.append("Database is at revision number " + str(applied) + ".")
+            messages.append("The database is at revision number " + str(applied) + ".")
 
         if available > 0:
             messages.append("Revisions up to number " + str(available) + " are available.")
@@ -431,7 +432,7 @@ class DBMarshal(object):
 
         messages.append("There are " + str(statics) + " static migrations.")
 
-        DBMarshal.talk('Status...', messages)
+        DBMarshal.talk('status', messages)
 
     def create_log_table(self):
         """
@@ -471,4 +472,3 @@ class DBMarshal(object):
         pickle.dump(config, f)
 
         f.close()
-        

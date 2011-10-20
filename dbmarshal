@@ -22,7 +22,10 @@ elif len(sys.argv) == 3:
     action = sys.argv[2]
 
     if hasattr(dbm, action):
+
         getattr(dbm, action)()
+
+        print "\n"
 
     else:
         usage()
