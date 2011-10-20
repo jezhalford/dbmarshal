@@ -315,6 +315,8 @@ class DBMarshal(object):
             try:
                 print '\nSome of the migrations seem to have failed. Those that can be rolled back will be.\n'
                 conn.rollback()
+                cursor.execute('DELETE FROM `dbmarshal_log` WHERE `change_number`= %d;'
+                                   % (int(migration['number'])))
             except  mysql.Error, e:
                 print "Error %d: %s" % (e.args[0],e.args[1])
 

@@ -1,9 +1,32 @@
+
+
 dbmarshal
 =========
 
-dbmarshal is a dbdeploy inspired database migration tool. It supports mySQL, makes use of
-transactions, and is written in python.
+dbmarshal is a migration tool for mySQL databases.
 
+Theory
+------
+
+dbmarshal works a lot like dbdeploy. It creates a log table in your database that it uses to keep
+track of what revision number the database is at. It allows you to store database revisions as
+numerically named SQL files and, when asked, will bring your database up to date by running
+any such migrations that have not yet been applied.
+
+dbmarshal handles *triggers* and *stored procedures* separately to other types of migration. You can
+use ordinary numerical revisions to create such things, but this is probably a bad idea - what if
+you subsequently change the structure of tables that the sprocs and triggers rely on? You'll
+probably have to search backward through your revisions until you find any that are affected, and
+then create another revision that drops and recreates them to work with the new structure.
+
+Rather than bother with all this, dbmarshal stores triggers and sprocs as *static* migrations -
+each time you apply an update all the sprocs and triggers on your database are dropped and rebuilt
+from static (i.e. not numerically named) scripts. This has the advantage that you can easily see
+and read the source of all your triggers and sprocs, and make any changes without having to drop and
+recreate the item concerned.
+
+dbmarshal does not provision for undoing migrations, but does *attempt* to roll back if things go
+wrong -see **Transactions** below.
 
 Requirements
 ------------
@@ -66,11 +89,27 @@ Assuming you have done the above configuration:
 Migration Files
 ---------------
 
-These should be named `x.sql`, where `x` is the number of the migration, e.g. `1.sql`, `2.sql`,
-etc. Each migration should contain the SQL required to make the migration happen, followed by
-`-- //@UNDO`, followed by the SQL required to undo the migration. (Undoing isn't actually supported
-by dbmarshal yet, but hopefully it will be soon.)
-The `-- //@UNDO` line is REQUIRED - dbmarshal will break if it is not there.
+There are two kinds of migrations that dbmarshal is willing to deal with. *Static Migrations*,
+and *Revisions*. These will need to be placed into to directories under your migration files path.
+Your migrations directory therefore should look like this -
+
+    migrations/
+        statics/
+        revisions/
+
+###Statics###
+
+These are SQL scripts that create either stored procedures or triggers, and should be named things
+like `trigger__my_trigger.sql` or `sproc__this_procedure.sql`. All SQL filenames in this directory
+must start with either `trigger__` or `sproc__`. It is probably a good idea to use the rest of the
+file name to store the name of the trigger or procedure that the file creates, and it is certainly
+a bad idea to create more than one of anything in any one file.
+
+###Revisions###
+
+These are SQL scripts named numerically - `1.sql`, `2.sql`, etc. They should each represent a change
+that needs to be made to your database structure, which may depend on the existing structure e.g.
+adding tables, changing columns, etc.
 
 Transactions
 ------------
@@ -82,7 +121,5 @@ However, mySQL does not support transactions for DDL operations, i.e. `CREATE TA
 etc. If the migration set contains any such operations the rollback will fail. You will then end up
 with an entry in your log table that has a `started` time but no `completed` time.
 
-One day something clever involving undos might solve this problem.
-
-If a migration fails the error message returned by mySQL will be displayed in your terminal.
-
+If a migration fails its log entry will be deleted and the error message returned by mySQL will be
+displayed in your terminal.
