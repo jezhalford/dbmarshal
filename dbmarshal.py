@@ -182,11 +182,10 @@ class DBMarshal(object):
                 scripts.append(script)
                 
         return scripts
-                
 
-    def __drop_statics(self):
+    def __get_statics(self):
         """
-        Drops any triggers, stored procedures or views that exist on the database.
+        Gets a list of any triggers, stored procedures or views that exist on the database.
         """
         try:
 
@@ -197,7 +196,7 @@ class DBMarshal(object):
             cursor.execute("""SELECT R.SPECIFIC_NAME FROM INFORMATION_SCHEMA.ROUTINES R
                                 WHERE R.ROUTINE_SCHEMA = '%s' AND R.ROUTINE_TYPE = 'PROCEDURE'"""
                                 % (self.__database))
-                                
+
             sprocs = cursor.fetchall()
 
             #triggers
@@ -210,13 +209,35 @@ class DBMarshal(object):
                                 WHERE V.TABLE_SCHEMA = '%s'""" % (self.__database))
             views = cursor.fetchall()
 
-            for sproc in sprocs:
+            return {'triggers' : triggers, 'sprocs' : sprocs, 'views' : views}
+            
+        except mysql.Error, e:
+            print "Error %d: %s" % (e.args[0],e.args[1])
+            print '\nFailed to drop static objects, rolling back.\n'
+            conn.rollback()
+            sys.exit(1)
+
+        cursor.close()
+        conn.close()
+
+
+    def __drop_statics(self):
+        """
+        Drops any triggers, stored procedures or views that exist on the database.
+        """
+        try:
+
+            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+
+            statics = self.__get_statics()
+
+            for sproc in statics['sprocs']:
                 cursor.execute('DROP PROCEDURE %s' % sproc[0])
 
-            for trigger in triggers:
+            for trigger in statics['triggers']:
                 cursor.execute('DROP TRIGGER %s' % trigger[0])
 
-            for view in views:
+            for view in statics['views']:
                 cursor.execute('DROP VIEW  %s' % view[0])
             
             cursor.close()
@@ -297,6 +318,54 @@ class DBMarshal(object):
         cursor.close()
         conn.close()
 
+    def export_statics(self):
+        """
+        Create scripts for  sprocs, triggers and views that currently exist into the database.
+        """
+        try:
+
+            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+
+            cursor = conn.cursor()
+
+            statics = self.__get_statics()
+
+            for sproc in statics['sprocs']:
+                cursor.execute('SHOW CREATE PROCEDURE %s' % sproc[0])
+                sproc_info = cursor.fetchone()
+
+                f = open(self.__get_statics_dir() + '/sproc__' + sproc_info[0] + '.sql' , 'w')
+                f.write(sproc_info[2])
+                f.close()
+
+
+            for trigger in  statics['triggers']:
+                cursor.execute('SHOW CREATE TRIGGER %s' % trigger[0])
+                trigger_info = cursor.fetchone()
+
+                f = open(self.__get_statics_dir() + '/trigger__' + trigger_info[0] + '.sql' , 'w')
+                f.write(trigger_info[2])
+                f.close()
+#
+            for view in statics['views']:
+                cursor.execute('SHOW CREATE VIEW %s' % view[0])
+                view_info = cursor.fetchone()
+
+                f = open(self.__get_statics_dir() + '/view__' + view_info[0] + '.sql' , 'w')
+                f.write(view_info[1])
+                f.close()
+
+
+        except mysql.Error, e:
+            print "Error %d: %s" % (e.args[0],e.args[1])
+            print '\nFailed to drop static objects, rolling back.\n'
+            conn.rollback()
+            sys.exit(1)
+
+        cursor.close()
+        conn.close()
+
+
     def apply(self):
         """
         Applies outstanding migrations to the database.
@@ -361,7 +430,7 @@ class DBMarshal(object):
 
         messages.append("There are " + str(available - applied) + " revisions ready to apply.")
 
-        messages.append("There are " + str(statics) + " static migrations to run.")
+        messages.append("There are " + str(statics) + " static migrations.")
 
         DBMarshal.talk('Status...', messages)
 
