@@ -40,7 +40,7 @@ class DBMarshal(object):
         dbm.save_config(alias)
         dbm.create_log_table()
 
-        DBMarshal.talk("Done.")
+        DBMarshal.done('New alias created successfully.')
 
         return dbm
 
@@ -61,9 +61,8 @@ class DBMarshal(object):
                                         data['password'], data['database'], data['directory'])
 
         else:
-            print '\nError: Could not find a valid config file called "' + alias + '"'
-
             f.close()
+            DBMarshal.error('Could not find a valid config file called "' + alias + '"')
 
     @staticmethod
     def get_config_root():
@@ -83,10 +82,22 @@ class DBMarshal(object):
     def talk(heading, messages = []):
 
         if heading is not None:
-            print "\ndbmarshal: " + heading
+            print "\n\033[1mdbmarshal:\033[0m " + heading
 
         for message in messages:
             print "\t" + message
+
+    @staticmethod
+    def error(message):
+        print '\n\033[91m' + message + '\033[0m\n'
+        sys.exit(1)
+
+    @staticmethod
+    def done(message):
+        print "\n\t\033[92m" + message + "\033[0m"
+
+    def __get_db_connection(self):
+        return mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
 
     def __get_revisions_dir(self):
         return self.__directory + '/revisions'
@@ -96,10 +107,10 @@ class DBMarshal(object):
 
     def __applied_status(self):
         """
-        Returns the migration number that was most recently applied to the database.
+        Returns the revision number that was most recently applied to the database.
         """
         try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             cursor = conn.cursor()
             cursor.execute('SELECT `change_number` FROM `dbmarshal_log` ORDER BY `change_number` DESC LIMIT 1')
@@ -115,13 +126,11 @@ class DBMarshal(object):
             return data
 
         except mysql.Error, e:
-            print "Error %d: %s" % (e.args[0],e.args[1])
-            sys.exit(1)
-
+            DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]))
 
     def __available_status(self):
         """
-        Returns the highest available migration number in the migrations directory.
+        Returns the highest available revision number in the revisions directory.
         """
         listing = os.listdir(self.__get_revisions_dir())
 
@@ -187,7 +196,7 @@ class DBMarshal(object):
         """
         try:
 
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             # sprocs
             cursor = conn.cursor()
@@ -205,10 +214,9 @@ class DBMarshal(object):
             return {'triggers' : triggers, 'sprocs' : sprocs}
             
         except mysql.Error, e:
-            print "Error %d: %s" % (e.args[0],e.args[1])
-            print '\nFailed to drop static objects, rolling back.\n'
             conn.rollback()
-            sys.exit(1)
+            DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]) +
+                '\n\nCould not get a list of static objects.')
 
         cursor.close()
         conn.close()
@@ -220,7 +228,7 @@ class DBMarshal(object):
         """
         try:
 
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
             cursor = conn.cursor()
             
             statics = self.__get_statics()
@@ -239,9 +247,10 @@ class DBMarshal(object):
                     'sprocs' : len(statics['sprocs'])}
 
         except mysql.Error, e:
-            print "Error %d: %s" % (e.args[0],e.args[1])
-            print '\nFailed to drop static objects, rolling back.\n'
             conn.rollback()
+            DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]) +
+                '\n\nFailed to drop static objects.')
+            
             sys.exit(1)
 
         cursor.close()
@@ -252,7 +261,7 @@ class DBMarshal(object):
         Creates triggers and stored procedures from the static migrations.
         """
         try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             cursor = conn.cursor()
 
@@ -276,11 +285,9 @@ class DBMarshal(object):
             return feedback
 
         except mysql.Error, e:
-            print "Error %d: %s" % (e.args[0],e.args[1])
-            print "Failed to run static migration '" + script['file'] + "'."
-            print '\nFailed to create static objects, rolling back.\n'
             conn.rollback()
-            sys.exit(1)
+            DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]) +
+                "\n\nFailed to run static migration '" + script['file'] + "'.")
 
         cursor.close()
         conn.close()
@@ -290,12 +297,12 @@ class DBMarshal(object):
         Runs scripts of the specified type in a transaction
         """
         try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
             
             cursor = conn.cursor()
 
             for migration in migrations:
-                DBMarshal.talk(None, ["Applying migration: " + migration['name'] + "..."])
+                DBMarshal.talk(None, ["Applying revision: " + migration['name'] + "..."])
 
                 log_update_one = """
                 INSERT INTO `dbmarshal_log` SET `change_number` = %d, `description` = '%s';
@@ -311,16 +318,16 @@ class DBMarshal(object):
             conn.commit()
 
         except mysql.Error, e:
-            print "Error %d: %s" % (e.args[0],e.args[1])
             try:
-                print '\nSome of the migrations seem to have failed. Those that can be rolled back will be.\n'
                 conn.rollback()
                 cursor.execute('DELETE FROM `dbmarshal_log` WHERE `change_number`= %d;'
                                    % (int(migration['number'])))
-            except  mysql.Error, e:
-                print "Error %d: %s" % (e.args[0],e.args[1])
 
-            sys.exit(1)
+                DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]) +
+                '\n\nSome of the migrations seem to have failed. Those that can be rolled back will be.')
+            except  mysql.Error, e:
+                DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]))
+
 
         cursor.close()
         conn.close()
@@ -334,7 +341,7 @@ class DBMarshal(object):
 
         try:
 
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             cursor = conn.cursor()
 
@@ -357,14 +364,13 @@ class DBMarshal(object):
                 f.write(trigger_info[2])
                 f.close()
 
-            DBMarshal.talk(None, ['Done'])
+            DBMarshal.done('Static migrations successfully created.')
 
         except mysql.Error, e:
-            print "Error %d: %s" % (e.args[0],e.args[1])
-            print '\nFailed to drop static objects, rolling back.\n'
             conn.rollback()
-            sys.exit(1)
-
+            DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]) +
+                '\n\nFailed to drop static objects, rolling back.')
+            
         cursor.close()
         conn.close()
 
@@ -394,7 +400,8 @@ class DBMarshal(object):
         else:
             DBMarshal.talk(None, ['Applying revisions'])
             self.__run_scripts(outstanding_migrations)
-            DBMarshal.talk(None, ['Done'])
+
+        DBMarshal.done('Database updated successfully.')
 
     def describe(self):
         """
@@ -435,13 +442,14 @@ class DBMarshal(object):
         messages.append("There are " + str(statics) + " static migrations.")
 
         DBMarshal.talk('status', messages)
+        
 
     def create_log_table(self):
         """
         Creates the log table.
         """
         try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             cursor = conn.cursor()
             cursor.execute(self.__log_table_sql)
@@ -451,8 +459,7 @@ class DBMarshal(object):
             conn.close()
 
         except mysql.Error, e:
-            print "Error %d %s" % (e.args[0],e.args[1])
-            sys.exit(1)
+            DBMarshal.error("Error %d %s" % (e.args[0],e.args[1]))
 
     def save_config(self, alias):
         """
