@@ -89,7 +89,7 @@ class DBMarshal(object):
 
     @staticmethod
     def error(message):
-        print '\n\033[91m' + message + '\033[0m\n'
+        sys.stderr.write('\n\033[91m' + message + '\033[0m\n')
         sys.exit(1)
 
     @staticmethod
@@ -97,7 +97,10 @@ class DBMarshal(object):
         print "\n\t\033[92m" + message + "\033[0m"
 
     def __get_db_connection(self):
-        return mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+        try:
+            return mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+        except mysql.Error, e:
+            DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]))
 
     def __get_revisions_dir(self):
         return self.__directory + '/revisions'
