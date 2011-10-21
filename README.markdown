@@ -1,5 +1,3 @@
-
-
 dbmarshal
 =========
 
@@ -127,10 +125,16 @@ Transactions
 
 Each time you run `dbmarshal <alias> apply` a new transaction is started. If any one of the
 migrations that are due to be deployed in that session fails, the transaction will be rolled back,
- i.e. *None of them will be applied*.
-However, mySQL does not support transactions for DDL operations, i.e. `CREATE TABLE`, `ALTER TABLE`,
-etc. If the migration set contains any such operations the rollback will fail. You will then end up
-with an entry in your log table that has a `started` time but no `completed` time.
+ i.e. *None of them will be applied*. However, mySQL does not support transactions for DDL
+operations, i.e. `CREATE TABLE`, `ALTER TABLE`, etc.
 
-If a migration fails its log entry will be deleted and the error message returned by mySQL will be
-displayed in your terminal.
+Imagine you have 5 migrations to apply numbered 1, 2, 3, 4 and 5. Migrations 1, 2, 3 and 5 all
+contain ordinary transactionable SQL, but number 4 contains some DDL. If all of the migrations
+succeed mySQL will have used three transactions - it starts one initially, applying 1, 2 and 3.
+At migration 4 it finds a statement that cannot support transactions so it `COMMIT`s. It then runs
+number 4 and starts a new transaction afterwards for number 5. All being well, 5 is then `COMMIT`ed.
+
+The extent to which dbmarshal can roll back failures therefore depends on where in the session there
+might be DDL statements. In the above scenario, if migration 2 caused a failure then nothing in the
+database would change. If 4 or 5 failed then migrations 1, 2 and 3 *would* still end up being
+applied.
