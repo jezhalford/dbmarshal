@@ -88,6 +88,9 @@ class DBMarshal(object):
         for message in messages:
             print "\t" + message
 
+    def __get_db_connection(self):
+        return mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+
     def __get_revisions_dir(self):
         return self.__directory + '/revisions'
 
@@ -99,7 +102,7 @@ class DBMarshal(object):
         Returns the migration number that was most recently applied to the database.
         """
         try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             cursor = conn.cursor()
             cursor.execute('SELECT `change_number` FROM `dbmarshal_log` ORDER BY `change_number` DESC LIMIT 1')
@@ -187,7 +190,7 @@ class DBMarshal(object):
         """
         try:
 
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             # sprocs
             cursor = conn.cursor()
@@ -220,7 +223,7 @@ class DBMarshal(object):
         """
         try:
 
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
             cursor = conn.cursor()
             
             statics = self.__get_statics()
@@ -252,7 +255,7 @@ class DBMarshal(object):
         Creates triggers and stored procedures from the static migrations.
         """
         try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             cursor = conn.cursor()
 
@@ -290,7 +293,7 @@ class DBMarshal(object):
         Runs scripts of the specified type in a transaction
         """
         try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
             
             cursor = conn.cursor()
 
@@ -334,7 +337,7 @@ class DBMarshal(object):
 
         try:
 
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             cursor = conn.cursor()
 
@@ -441,7 +444,7 @@ class DBMarshal(object):
         Creates the log table.
         """
         try:
-            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = self.__get_db_connection()
 
             cursor = conn.cursor()
             cursor.execute(self.__log_table_sql)
