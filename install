@@ -1,0 +1,15 @@
+#!/bin/bash
+
+chmod +x dbmarshal
+
+sudo apt-get install python python-mysqldb
+
+mydir=`pwd`
+pathline="PATH=\"$mydir:\$PATH\""
+temp=`grep -v "$pathline" ~/.bashrc`
+echo -e "$temp" > ~/.bashrc
+echo "$pathline" >> ~/.bashrc
+echo "export PATH" >> ~/.bashrc
+source ~/.bashrc
+echo
+echo "Finished installing dbmarshal."
