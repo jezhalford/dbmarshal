@@ -147,11 +147,21 @@ class DBMarshal(object):
 
         return highest
 
-    def __static_status(self):
+    def __get_static_status(self):
         """
         Returns a count of static scripts that need to be applied.
         """
-        return len(os.listdir(self.__get_statics_dir()))
+        feedback = {'sprocs' : 0, 'triggers' : 0}
+
+        listing = os.listdir(self.__get_statics_dir())
+
+        for file in listing:
+            if file.endswith('.sql') and file.startswith('trigger___'):
+                feedback['triggers'] += 1
+            elif file.endswith('.sql') and file.startswith('sproc___'):
+                feedback['sprocs'] += 1
+
+        return feedback
 
     def __get_revisions(self, start):
         """
@@ -426,23 +436,31 @@ class DBMarshal(object):
 
         available = self.__available_status()
 
-        statics = self.__static_status()
+        statics = self.__get_static_status()
+
+        applied_statics = self.__get_statics()
 
         messages = []
 
-        if applied == 0:
-            messages.append("There is no record of any revisions having been applied to this database.")
-        else:
-            messages.append("The database is at revision number " + str(applied) + ".")
+        messages.append("The database is at revision " + str(applied) + ".")
 
         if available > 0:
             messages.append("Revisions up to number " + str(available) + " are available.")
         else:
-            messages.append("No revisions are available to apply.")
+            messages.append("0 revisions are available to apply.")
 
-        messages.append("There are " + str(available - applied) + " revisions ready to apply.")
+        messages.append(str(available - applied) + " revisions need to be applied.")
 
-        messages.append("There are " + str(statics) + " static migrations.")
+        messages.append("%d trigger scripts are available to run."
+                                                                        % statics['triggers'])
+        messages.append("%d stored procedure scripts are available to run."
+                                                                        % statics['sprocs'])
+
+        messages.append("%d triggers exist in the database."
+                                                            % len(applied_statics['triggers']))
+
+        messages.append("%d stored procedures exist in the database."
+                                                            % len(applied_statics['sprocs']))
 
         DBMarshal.talk('status', messages)
         
