@@ -156,9 +156,9 @@ class DBMarshal(object):
         listing = os.listdir(self.__get_statics_dir())
 
         for file in listing:
-            if file.endswith('.sql') and file.startswith('trigger___'):
+            if file.endswith('.sql') and file.startswith('trigger__'):
                 feedback['triggers'] += 1
-            elif file.endswith('.sql') and file.startswith('sproc___'):
+            elif file.endswith('.sql') and file.startswith('sproc__'):
                 feedback['sprocs'] += 1
 
         return feedback
