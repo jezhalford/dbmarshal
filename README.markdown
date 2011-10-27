@@ -88,8 +88,8 @@ database.
 
     dbmarshal <alias> create_log_table
 
-...will create a blank log table in your database. This is done automatically when you
-`dbmarshal init`.
+...will create a blank log table in your database. This is done automatically the first time you
+use `status` or `apply`.
 
     dbmarshal <alias> save_config <new_alias>
 

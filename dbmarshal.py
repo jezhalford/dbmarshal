@@ -2,6 +2,7 @@ import sys
 import os
 import pickle
 import MySQLdb as mysql
+from warnings import filterwarnings, resetwarnings
 
 class DBMarshal(object):
 
@@ -38,7 +39,6 @@ class DBMarshal(object):
 
         dbm = DBMarshal(hostname, username, password, database, os.path.abspath(directory))
         dbm.save_config(alias)
-        dbm.create_log_table()
 
         DBMarshal.done('New alias created successfully.')
 
@@ -392,6 +392,8 @@ class DBMarshal(object):
         """
         Applies outstanding migrations to the database.
         """
+        self.create_log_table()
+        
         applied = self.__applied_status()
         outstanding_migrations = self.__get_revisions(applied+1)
 
@@ -432,6 +434,8 @@ class DBMarshal(object):
         """
         Tells you all about where you are with migrations.
         """
+        self.create_log_table()
+        
         applied = self.__applied_status()
 
         available = self.__available_status()
@@ -470,6 +474,7 @@ class DBMarshal(object):
         Creates the log table.
         """
         try:
+            filterwarnings('ignore', category = mysql.Warning)
             conn = self.__get_db_connection()
 
             cursor = conn.cursor()
@@ -478,6 +483,7 @@ class DBMarshal(object):
             conn.commit()
             cursor.close()
             conn.close()
+            resetwarnings()
 
         except mysql.Error, e:
             DBMarshal.error("Error %d %s" % (e.args[0],e.args[1]))
