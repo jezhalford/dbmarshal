@@ -89,8 +89,12 @@ class DBMarshal(object):
 
     @staticmethod
     def error(message):
-        sys.stderr.write('\n\033[91m' + message + '\033[0m\n')
+        sys.stderr.write('\n\033[91m\033[1mERROR:\033[0m\033[91m' + message + '\033[0m\n')
         sys.exit(1)
+
+    @staticmethod
+    def warn(message):
+        sys.stderr.write('\n\033[93m\033[1mWARNING:\033[0m\033[93m ' + message + '\033[0m\n')
 
     @staticmethod
     def done(message):
@@ -345,6 +349,14 @@ class DBMarshal(object):
         cursor.close()
         conn.close()
 
+    def __statics_mismatch(self):
+        """
+        Returns true if there are no static migration files but static objects exist in the daatabse
+        """
+        statics = self.__get_static_status()
+        applied_statics = self.__get_statics()
+        return (statics['triggers'] == 0 or statics['sprocs'] == 0) and (len(applied_statics['triggers']) > 0 or len(applied_statics['sprocs']) > 0)
+
     def export_statics(self):
         """
         Create scripts for sprocs and triggers that currently exist into the database.
@@ -393,7 +405,25 @@ class DBMarshal(object):
         Applies outstanding migrations to the database.
         """
         self.create_log_table()
-        
+
+        if self.__statics_mismatch():
+            not_answered = True
+            while not_answered:
+                DBMarshal.talk("apply")
+                DBMarshal.warn('Triggers and/or stored procedures exist in your database but you do not have any corresponding static migrations.' +
+                '\n\t Continuing will drop all triggers and stored procedures from your database.' +
+                '\n\t To prevent this, answer no and use dbmarshal export_statics to create static migrations for all existing stored procedures and triggers.\n' +
+                '\n\t Do you wish to DROP ALL TRIGGERS AND STORED PROCEDURES FROM YOUR DATABASE? (y/n)')
+                answer = raw_input("> ").upper()
+
+                if answer == 'Y':
+                    not_answered = False
+
+                if answer == 'N':
+                    exit(0)
+
+            
+
         applied = self.__applied_status()
         outstanding_migrations = self.__get_revisions(applied+1)
 
@@ -467,6 +497,11 @@ class DBMarshal(object):
                                                             % len(applied_statics['sprocs']))
 
         DBMarshal.talk('status', messages)
+
+        if self.__statics_mismatch():
+            DBMarshal.warn('Triggers and/or stored procedures exist in your database but you do not have any corresponding static migrations.' +
+            '\n\t Using dbmarshal apply now will drop all triggers and stored procedures from your database.' +
+            '\n\t To prevent this, Use dbmarshal export_statics to create static migrations for all existing stored procedures and triggers.')
         
 
     def create_log_table(self):
