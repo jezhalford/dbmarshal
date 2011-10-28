@@ -38,7 +38,7 @@ class DBMarshal(object):
         DBMarshal.talk("Setting up alias: " + alias)
 
         dbm = DBMarshal(hostname, username, password, database, os.path.abspath(directory))
-        dbm.save_config(alias)
+        dbm.clone(alias)
 
         DBMarshal.done('New alias created successfully.')
 
@@ -56,12 +56,11 @@ class DBMarshal(object):
             f = open(config, 'r')
 
             data = pickle.load(f)
-
+            f.close()
             return DBMarshal.factory(data['hostname'], data['username'],
                                         data['password'], data['database'], data['directory'])
-
         else:
-            f.close()
+            
             DBMarshal.error('Could not find a valid config file called "' + alias + '"')
 
     @staticmethod
@@ -89,7 +88,7 @@ class DBMarshal(object):
 
     @staticmethod
     def error(message):
-        sys.stderr.write('\n\033[91m\033[1mERROR:\033[0m\033[91m' + message + '\033[0m\n')
+        sys.stderr.write('\n\033[91m\033[1mERROR:\033[0m\033[91m ' + message + '\033[0m\n')
         sys.exit(1)
 
     @staticmethod
@@ -412,9 +411,8 @@ class DBMarshal(object):
                 DBMarshal.talk("apply")
                 DBMarshal.warn('Triggers and/or stored procedures exist in your database but you do not have any corresponding static migrations.' +
                 '\n\t Continuing will drop all triggers and stored procedures from your database.' +
-                '\n\t To prevent this, answer no and use dbmarshal export_statics to create static migrations for all existing stored procedures and triggers.\n' +
-                '\n\t Do you wish to DROP ALL TRIGGERS AND STORED PROCEDURES FROM YOUR DATABASE? (y/n)')
-                answer = raw_input("> ").upper()
+                '\n\t To prevent this, answer no and use dbmarshal export_statics to create static migrations for all existing stored procedures and triggers.\n')
+                answer = raw_input("\t Do you wish to DROP ALL TRIGGERS AND STORED PROCEDURES FROM YOUR DATABASE? (y/n) ").upper()
 
                 if answer == 'Y':
                     not_answered = False
@@ -523,7 +521,7 @@ class DBMarshal(object):
         except mysql.Error, e:
             DBMarshal.error("Error %d %s" % (e.args[0],e.args[1]))
 
-    def save_config(self, alias):
+    def clone(self, alias):
         """
         Saves the current config under a new specified alias.
         """
@@ -543,3 +541,6 @@ class DBMarshal(object):
         pickle.dump(config, f)
 
         f.close()
+
+        DBMarshal.talk('clone');
+        DBMarshal.done('Config successfully saved as "' + alias + '".')

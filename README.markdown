@@ -91,9 +91,10 @@ database.
 ...will create a blank log table in your database. This is done automatically the first time you
 use `status` or `apply`.
 
-    dbmarshal <alias> save_config <new_alias>
+    dbmarshal <alias> clone <new_alias>
 
-...will copy the settings saved under `<alias>` to a `<new_alias>`.
+...will copy the settings saved under `<alias>` to a `<new_alias>`. If you specify 'default' as the
+alias then you don't need to bother entering an alias for any other commands.
 
 Migration Files
 ---------------

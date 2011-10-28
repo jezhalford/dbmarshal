@@ -16,14 +16,22 @@ elif sys.argv[1] == 'init':
     DBMarshal.create_alias(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7])
     
 
-elif len(sys.argv) == 3:
-    dbm = DBMarshal.from_alias(sys.argv[1])
+elif len(sys.argv) >= 2:
 
-    action = sys.argv[2]
+    if hasattr(DBMarshal, sys.argv[1]):
+        dbm = DBMarshal.from_alias('default')
+        action = sys.argv[1]
+    else:
+        dbm = DBMarshal.from_alias(sys.argv[1])
+        action = sys.argv[2]
 
     if hasattr(dbm, action):
 
-        getattr(dbm, action)()
+        if len(sys.argv) > 3:
+            params = sys.argv[3:len(sys.argv)]
+            getattr(dbm, action)(*params)
+        else:
+            getattr(dbm, action)()
 
         print "\n"
 
