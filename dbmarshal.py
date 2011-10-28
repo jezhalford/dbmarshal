@@ -108,8 +108,11 @@ class DBMarshal(object):
     def __get_revisions_dir(self):
         return self.__directory + '/revisions'
 
-    def __get_statics_dir(self):
-        return self.__directory + '/statics'
+    def __get_sprocs_dir(self):
+        return self.__directory + '/stored-procedures'
+
+    def __get_triggers_dir(self):
+        return self.__directory + '/triggers'
 
     def __applied_status(self):
         """
@@ -156,12 +159,15 @@ class DBMarshal(object):
         """
         feedback = {'sprocs' : 0, 'triggers' : 0}
 
-        listing = os.listdir(self.__get_statics_dir())
+        trigger_listing = os.listdir(self.__get_triggers_dir())
+        sproc_listing = os.listdir(self.__get_sprocs_dir())
 
-        for file in listing:
-            if file.endswith('.sql') and file.startswith('trigger__'):
+        for file in trigger_listing:
+            if file.endswith('.sql'):
                 feedback['triggers'] += 1
-            elif file.endswith('.sql') and file.startswith('sproc__'):
+
+        for file in sproc_listing:
+            if file.endswith('.sql'):
                 feedback['sprocs'] += 1
 
         return feedback
@@ -173,8 +179,10 @@ class DBMarshal(object):
         """
         revisions = []
 
-        listing = os.listdir(self.__get_revisions_dir())
+        def f(x): return x.endswith('.sql')
 
+        listing = filter(f, os.listdir(self.__get_revisions_dir()))
+        
         listing.sort(key=lambda number: int(number.rstrip('.sql')))
 
         for file in listing:
@@ -196,13 +204,26 @@ class DBMarshal(object):
         """
         scripts = []
 
-        listing = os.listdir(self.__get_statics_dir())
+        triggers_listing = os.listdir(self.__get_triggers_dir())
+        sprocs_listing = os.listdir(self.__get_sprocs_dir())
 
-        for file in listing:
+        for file in triggers_listing:
             if file.endswith('.sql'):
-                f = open(os.path.realpath(self.__get_statics_dir() + '/' + file), 'r')
+
+                path = os.path.realpath(self.__get_triggers_dir() + '/' + file)
+
+                f = open(os.path.realpath(self.__get_triggers_dir() + '/' + file), 'r')
                 script = f.read()
-                scripts.append({'script' : script, 'file' : file})
+                scripts.append({'script' : script, 'file' : path})
+
+        for file in sprocs_listing:
+            if file.endswith('.sql'):
+
+                path = os.path.realpath(self.__get_sprocs_dir() + '/' + file)
+
+                f = open(path, 'r')
+                script = f.read()
+                scripts.append({'script' : script, 'file' : path})
                 
         return scripts
 
@@ -284,13 +305,11 @@ class DBMarshal(object):
             feedback = {'sprocs' : 0, 'triggers' : 0}
 
             for script in self.__get_static_scripts():
-                if script['file'].startswith('trigger__'):
+
+                if script['file'].startswith(self.__get_triggers_dir()):
                     feedback['triggers'] += 1
-                elif script['file'].startswith('sproc__'):
+                elif script['file'].startswith(self.__get_sprocs_dir()):
                     feedback['sprocs'] += 1
-                else:
-                    print "Found a static migration file called '" + script['file'] + "'. Static migrations must start with trigger__ or sproc__."
-                    exit(1)
 
                 cursor.execute(script['script'])
             
@@ -361,7 +380,7 @@ class DBMarshal(object):
         Create scripts for sprocs and triggers that currently exist into the database.
         """
 
-        DBMarshal.talk('export_statics', ["Exporting statics to '%s'." % self.__get_statics_dir()])
+        DBMarshal.talk('export_statics')
 
         try:
 
@@ -375,7 +394,7 @@ class DBMarshal(object):
                 cursor.execute('SHOW CREATE PROCEDURE %s' % sproc[0])
                 sproc_info = cursor.fetchone()
 
-                f = open(self.__get_statics_dir() + '/sproc__' + sproc_info[0] + '.sql' , 'w')
+                f = open(self.__get_sprocs_dir() + '/' + sproc_info[0] + '.sql' , 'w')
                 f.write(sproc_info[2])
                 f.close()
 
@@ -384,16 +403,16 @@ class DBMarshal(object):
                 cursor.execute('SHOW CREATE TRIGGER %s' % trigger[0])
                 trigger_info = cursor.fetchone()
 
-                f = open(self.__get_statics_dir() + '/trigger__' + trigger_info[0] + '.sql' , 'w')
+                f = open(self.__get_triggers_dir() + '/' + trigger_info[0] + '.sql' , 'w')
                 f.write(trigger_info[2])
                 f.close()
 
-            DBMarshal.done('Static migrations successfully created.')
+            DBMarshal.done('Static migrations successfully created from your database. \n\tTriggers:\t\t%s \n\tStored Procedures:\t%s'
+                %(self.__get_triggers_dir(), self.__get_sprocs_dir()))
 
         except mysql.Error, e:
             conn.rollback()
-            DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]) +
-                '\n\nFailed to drop static objects, rolling back.')
+            DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]))
             
         cursor.close()
         conn.close()

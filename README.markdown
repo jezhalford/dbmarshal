@@ -50,7 +50,8 @@ to your PATH. Assuming you have done this, and with the following information to
     password  : The corresponding password.
     database  : The name of the schema you want to work with.
     directory : The path at which you will keep your migration files.
-    alias     : A handy name with which you can reference these settings later.
+    alias     : A handy name with which you can reference these settings later. Use 'default' if you
+                don't want to bother typing it in later.
 
 ...run...
 
@@ -60,41 +61,8 @@ to your PATH. Assuming you have done this, and with the following information to
 
     ~/.dbmarshal/<alias>
 
-...that will store the information you speicify. It will also create a new table in your database
-called `dbmarshal_log` that will be used to keep track of your migrations.
+...that will store the information you speicify, ready for use.
 
-
-Using dbmarshal
----------------
-
-Assuming you have done the above configuration:
-
-    dbmarshal <alias> describe
-
-...will display the settings you previously entered.
-
-    dbmarshal <alias> status
-
-...will tell you about migrations that have and have not been applied.
-
-    dbmarshal <alias> apply
-
-...will apply any waiting migrations that have yet to be applied.
-
-    dbmarshal <alias> export_statics
-
-...will create correctly named static migration files for all stored procedures and triggers in your
-database.
-
-    dbmarshal <alias> create_log_table
-
-...will create a blank log table in your database. This is done automatically the first time you
-use `status` or `apply`.
-
-    dbmarshal <alias> clone <new_alias>
-
-...will copy the settings saved under `<alias>` to a `<new_alias>`. If you specify 'default' as the
-alias then you don't need to bother entering an alias for any other commands.
 
 Migration Files
 ---------------
@@ -104,27 +72,72 @@ and *Revisions*. These will need to be placed into two directories under your mi
 Your migrations directory therefore should be structured like this -
 
     my_migrations_directory/
-        statics/
+        stored-procedures/
+        triggers/
         revisions/
 
-###Statics###
+If the three required subdirectories do not exist when you `dbmarshal init` they will be created
+for you.
 
-These are SQL scripts that create either stored procedures or triggers, and should be named things
-like `trigger__my_trigger.sql` or `sproc__this_procedure.sql`. All SQL filenames in this directory
-must start with either `trigger__` or `sproc__`. It is probably a good idea to use the rest of the
-file name to store the name of the trigger or procedure that the file creates, and it is certainly
-a bad idea to create more than one of anything in any one file.
+###Stored Procedures and Triggers###
+
+These are SQL scripts that create either stored procedures or triggers, and can be named whatever
+you like, as long as you use and `.sql` suffix. It is probably a good idea name the file after the
+trigger or stored procedure that it creates, and it is certainly a bad idea to create more than one
+of anything in any one file.
 
 ###Revisions###
 
-These are SQL scripts named numerically - `1.sql`, `2.sql`, etc. They should each represent a change
-that needs to be made to your database structure, which may depend on the existing structure e.g.
-adding tables, changing columns, etc.
+These are SQL scripts named numerically - `00001.sql`, `000002.sql`, etc. They should each represent
+a change that needs to be made to your database structure, which may depend on the existing
+structure e.g. adding tables, changing columns, etc. Leading zeros are optional - add as many or as
+few as seems appropriate.
+
+
+Using dbmarshal
+---------------
+
+Assuming you have done the above configuration, having supplied `default` as your alias...
+
+    dbmarshal describe
+
+...will display the settings you previously entered.
+
+    dbmarshal status
+
+...will tell you about migrations that have and have not been applied.
+
+    dbmarshal apply
+
+...will apply any waiting migrations that have yet to be applied.
+
+    dbmarshal export_statics
+
+...will create correctly named static migration files for all stored procedures and triggers in your
+database.
+
+    dbmarshal create_log_table
+
+...will create a blank log table in your database. This is done automatically the first time you
+use `status` or `apply`.
+
+    dbmarshal clone <new_alias>
+
+...will copy the settings saved under `<alias>` to a `<new_alias>`. If you specify 'default' as the
+alias then you don't need to bother entering an alias for any other commands.
+
+###Using Other Aliases###
+
+If you choose not to use `default` as your alias, or if you want to use dbmarshal to manage more
+than one database, you'll need to specify the alias as the first parameter to dbmarsal, e.g.
+
+    dbmarshal <alias> status
+
 
 Transactions
 ------------
 
-Each time you run `dbmarshal <alias> apply` a new transaction is started. If any one of the
+Each time you run `dbmarshal apply` a new transaction is started. If any one of the
 migrations that are due to be deployed in that session fails, the transaction will be rolled back,
  i.e. *None of them will be applied*. However, mySQL does not support transactions for DDL
 operations, i.e. `CREATE TABLE`, `ALTER TABLE`, etc.
