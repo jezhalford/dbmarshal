@@ -2,7 +2,11 @@
 
 chmod +x dbmarshal
 
-sudo apt-get install python python-mysqldb
+sudo apt-get install python python-mysqldb python-setuptools
+
+sudo easy_install pip
+
+sudo pip install sqlparse
 
 mydir=`pwd`
 pathline="PATH=\"$mydir:\$PATH\""

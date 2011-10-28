@@ -4,6 +4,7 @@ import os
 import pickle
 import MySQLdb as mysql
 from warnings import filterwarnings, resetwarnings
+import sqlparse
 
 class DBMarshal(object):
 
@@ -116,7 +117,9 @@ class DBMarshal(object):
 
     def __get_db_connection(self):
         try:
-            return mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn = mysql.connect(self.__hostname, self.__username, self.__password, self.__database)
+            conn.autocommit(True)
+            return conn
         except mysql.Error, e:
             DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]))
 
@@ -339,7 +342,6 @@ class DBMarshal(object):
             
             cursor.close()
 
-            conn.commit()
 
             return feedback
 
@@ -353,11 +355,10 @@ class DBMarshal(object):
 
     def __run_scripts(self, migrations):
         """
-        Runs scripts of the specified type in a transaction
+        Runs the supplied migrations
         """
         try:
             conn = self.__get_db_connection()
-            
             cursor = conn.cursor()
 
             for migration in migrations:
@@ -371,19 +372,20 @@ class DBMarshal(object):
                 UPDATE `dbmarshal_log` SET `completed` = NOW() WHERE `change_number`= %d;
                 """ % (int(migration['number']))
                 cursor.execute(log_update_one)
-                cursor.execute(migration['script'])
-                cursor.execute(log_update_two)
 
-            conn.commit()
+                statements = sqlparse.split(migration['script'])
+
+                for statement in statements:
+                    cursor.execute(statement)
+
+                cursor.execute(log_update_two)
 
         except mysql.Error, e:
             try:
                 conn.rollback()
                 cursor.execute('DELETE FROM `dbmarshal_log` WHERE `change_number`= %d;'
                                    % (int(migration['number'])))
-
-                DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]) +
-                '\n\nSome of the migrations seem to have failed. Those that can be rolled back will be.')
+                DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]))
             except  mysql.Error, e:
                 DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]))
 

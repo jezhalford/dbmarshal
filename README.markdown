@@ -1,7 +1,7 @@
 dbmarshal
 =========
 
-dbmarshal is a migration tool for mySQL databases.
+dbmarshal is a migration tool for MySQL databases.
 
 It works a lot like dbdeploy. It creates a log table in your database that it uses to keep
 track of what revision number the database is at. It allows you to store database revisions as
@@ -33,10 +33,13 @@ You will need...
 
 *Python*
 
-The following installs Python along with a popular mySQL library.
+The following installs Python along with a popular MySQL library.
 
     sudo apt-get install python python-mysqldb
 
+*sqlparse*
+
+This is a Python package for parsing SQL. See http://code.google.com/p/python-sqlparse/
 
 Configuration
 -------------
@@ -138,18 +141,16 @@ than one database, you'll need to specify the alias as the first parameter to db
 Transactions
 ------------
 
-Each time you run `dbmarshal apply` a new transaction is started. If any one of the
-migrations that are due to be deployed in that session fails, the transaction will be rolled back,
- i.e. *None of them will be applied*. However, mySQL does not support transactions for DDL
-operations, i.e. `CREATE TABLE`, `ALTER TABLE`, etc.
+dbmarshal does not make use of transactions. It operates with autocommit enabled, so each SQL
+statement is committed as soon as it has executed.
 
-Imagine you have 5 migrations to apply numbered 1, 2, 3, 4 and 5. Migrations 1, 2, 3 and 5 all
-contain ordinary transactionable SQL, but number 4 contains some DDL. If all of the migrations
-succeed mySQL will have used three transactions - it starts one initially, applying 1, 2 and 3.
-At migration 4 it finds a statement that cannot support transactions so it `COMMIT`s. It then runs
-number 4 and starts a new transaction afterwards for number 5. All being well, 5 is then `COMMIT`ed.
+This is simply because MySQL's transaction support is not very good. It supports transactions only
+for a few operations on InnoDB tables. Certain `ALTER TABLE` operations, `CREATE TABLE` operations
+and various other statements cannot be part of a transaction. Transaction support can only really be
+relied on for data manipulation operations - `SELECT`ing, `INSERT`ing etc. and the majority of work
+anyone is likely to do with a tool such as dbmarshal is probably not going to be of this type.
 
-The extent to which dbmarshal can roll back failures therefore depends on where in the session there
-might be DDL statements. In the above scenario, if migration 2 caused a failure then nothing in the
-database would change. If 4 or 5 failed then migrations 1, 2 and 3 *would* still end up being
-applied.
+To keep things simple, dbmarshal leaves transactions up to you: if you want a revision to use a
+transaction, surround it with `BEGIN` and `COMMIT`. dbmarshal *will* call `ROLLBACK` in the event
+of a revision failing, but unless you have explicitly started a transaction this will not have any
+affect.
