@@ -1,7 +1,7 @@
 dbmarshal
 =========
 
-dbmarshal is a migration tool for mySQL databases.
+dbmarshal is a migration tool for MySQL databases.
 
 It works a lot like dbdeploy. It creates a log table in your database that it uses to keep
 track of what revision number the database is at. It allows you to store database revisions as
@@ -20,37 +20,37 @@ from static (i.e. not numerically named) scripts. This has the advantage that yo
 and read the source of all your triggers and sprocs, and make any changes without having to drop and
 recreate the item concerned.
 
-dbmarshal does not provision for undoing migrations, but does *attempt* to roll back if things go
+dbmarshal does not provision for undoing migrations, but can *attempt* to roll back if things go
 wrong -see **Transactions** below.
 
 Requirements
 ------------
 
-The following describes how to start using dbmarshal in Ubuntu. I imagine these steps are broadly
-similar for other linux flavours.
+The install script will install everything you need to run dbmarshal on Ubuntu. For other platforms, 
+you'll need to find a means of installing the following...
 
-You will need...
+*Python*, the *MySQLdb* Python package and the *sqlparse* Python package.
 
-*Python*
+*Python* and *MySQLdb* are readily available in your favourite package manager.
 
-The following installs Python along with a popular mySQL library.
-
-    sudo apt-get install python python-mysqldb
-
+See http://code.google.com/p/python-sqlparse/ for ways to get hold of *sqlparse*.
 
 Configuration
 -------------
 
 Clone or otherwise acquire the dbmarshal source. Life will become easier if you add this directory
-to your PATH. Assuming you have done this, and with the following information to hand...
+to your PATH. This is done automatically if you use the install script. Assuming you have done 
+this, and with the following information to hand...
 
 
     hostname  : The hostname of the database server you want to work with.
     username  : The username you need to use to access this server.
     password  : The corresponding password.
     database  : The name of the schema you want to work with.
-    directory : The path at which you will keep your migration files.
-    alias     : A handy name with which you can reference these settings later.
+    directory : The path at which you will keep your migration files. This will be created for you
+                if it doesn't exist.
+    alias     : A handy name with which you can reference these settings later. Use 'default' if you
+                don't want to bother typing it in later.
 
 ...run...
 
@@ -60,40 +60,8 @@ to your PATH. Assuming you have done this, and with the following information to
 
     ~/.dbmarshal/<alias>
 
-...that will store the information you speicify. It will also create a new table in your database
-called `dbmarshal_log` that will be used to keep track of your migrations.
+...that will store the information you speicify, ready for use.
 
-
-Using dbmarshal
----------------
-
-Assuming you have done the above configuration:
-
-    dbmarshal <alias> describe
-
-...will display the settings you previously entered.
-
-    dbmarshal <alias> status
-
-...will tell you about migrations that have and have not been applied.
-
-    dbmarshal <alias> apply
-
-...will apply any waiting migrations that have yet to be applied.
-
-    dbmarshal <alias> export_statics
-
-...will create correctly named static migration files for all stored procedures and triggers in your
-database.
-
-    dbmarshal <alias> create_log_table
-
-...will create a blank log table in your database. This is done automatically when you
-`dbmarshal init`.
-
-    dbmarshal <alias> save_config <new_alias>
-
-...will copy the settings saved under `<alias>` to a `<new_alias>`.
 
 Migration Files
 ---------------
@@ -103,38 +71,81 @@ and *Revisions*. These will need to be placed into two directories under your mi
 Your migrations directory therefore should be structured like this -
 
     my_migrations_directory/
-        statics/
+        stored-procedures/
+        triggers/
         revisions/
 
-###Statics###
+If the required directory structure does not exist when you `dbmarshal init` it will be created for 
+you.
 
-These are SQL scripts that create either stored procedures or triggers, and should be named things
-like `trigger__my_trigger.sql` or `sproc__this_procedure.sql`. All SQL filenames in this directory
-must start with either `trigger__` or `sproc__`. It is probably a good idea to use the rest of the
-file name to store the name of the trigger or procedure that the file creates, and it is certainly
-a bad idea to create more than one of anything in any one file.
+###Stored Procedures and Triggers###
+
+These are SQL scripts that create either stored procedures or triggers, and can be named whatever
+you like, as long as you use an `.sql` suffix. It is probably a good idea name the file after the
+trigger or stored procedure that it creates, and it is certainly a bad idea to create more than one
+of anything in any one file.
 
 ###Revisions###
 
-These are SQL scripts named numerically - `1.sql`, `2.sql`, etc. They should each represent a change
-that needs to be made to your database structure, which may depend on the existing structure e.g.
-adding tables, changing columns, etc.
+These are SQL scripts named numerically - `00001.sql`, `000002.sql`, etc. They should each represent
+a change that needs to be made to your database structure, which may depend on the existing
+structure e.g. adding tables, changing columns, etc. Leading zeros are optional - add as many or as
+few as seems appropriate.
+
+
+Using dbmarshal
+---------------
+
+Assuming you have done the above configuration, having supplied `default` as your alias...
+
+    dbmarshal describe
+
+...will display the settings you previously entered.
+
+    dbmarshal status
+
+...will tell you about migrations that have and have not been applied.
+
+    dbmarshal apply
+
+...will apply any waiting migrations that have yet to be applied.
+
+    dbmarshal export_statics
+
+...will create correctly named static migration files for all stored procedures and triggers in your
+database.
+
+    dbmarshal create_log_table
+
+...will create a blank log table in your database. This is done automatically the first time you
+use `status` or `apply`.
+
+    dbmarshal clone <new_alias>
+
+...will copy the settings saved under `<alias>` to a `<new_alias>`. If you specify 'default' as the
+alias then you don't need to bother entering an alias for any other commands.
+
+###Using Other Aliases###
+
+If you choose not to use `default` as your alias, or if you want to use dbmarshal to manage more
+than one database, you'll need to specify the alias as the first parameter to dbmarsal, e.g.
+
+    dbmarshal <alias> status
+
 
 Transactions
 ------------
 
-Each time you run `dbmarshal <alias> apply` a new transaction is started. If any one of the
-migrations that are due to be deployed in that session fails, the transaction will be rolled back,
- i.e. *None of them will be applied*. However, mySQL does not support transactions for DDL
-operations, i.e. `CREATE TABLE`, `ALTER TABLE`, etc.
+dbmarshal does not make use of transactions. It operates with autocommit enabled, so each SQL
+statement is committed as soon as it has executed.
 
-Imagine you have 5 migrations to apply numbered 1, 2, 3, 4 and 5. Migrations 1, 2, 3 and 5 all
-contain ordinary transactionable SQL, but number 4 contains some DDL. If all of the migrations
-succeed mySQL will have used three transactions - it starts one initially, applying 1, 2 and 3.
-At migration 4 it finds a statement that cannot support transactions so it `COMMIT`s. It then runs
-number 4 and starts a new transaction afterwards for number 5. All being well, 5 is then `COMMIT`ed.
+This is simply because MySQL's transaction support is not very good. It supports transactions only
+for a few operations on InnoDB tables. Certain `ALTER TABLE` operations, `CREATE TABLE` operations
+and various other statements cannot be part of a transaction. Transaction support can only really be
+relied on for data manipulation operations - `SELECT`ing, `INSERT`ing etc. and the majority of work
+anyone is likely to do with a tool such as dbmarshal is probably not going to be of this type.
 
-The extent to which dbmarshal can roll back failures therefore depends on where in the session there
-might be DDL statements. In the above scenario, if migration 2 caused a failure then nothing in the
-database would change. If 4 or 5 failed then migrations 1, 2 and 3 *would* still end up being
-applied.
+To keep things simple, dbmarshal leaves transactions up to you: if you want a revision to use a
+transaction, surround it with `BEGIN` and `COMMIT`. dbmarshal *will* call `ROLLBACK` in the event
+of a revision failing, but unless you have explicitly started a transaction this will not have any
+effect.
