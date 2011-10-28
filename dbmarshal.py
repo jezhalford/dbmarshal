@@ -1,3 +1,4 @@
+import os.path
 import sys
 import os
 import pickle
@@ -37,10 +38,24 @@ class DBMarshal(object):
         """
         DBMarshal.talk("Setting up alias: " + alias)
 
-        dbm = DBMarshal(hostname, username, password, database, os.path.abspath(directory))
-        dbm.clone(alias)
+        directory = os.path.abspath(directory)
 
-        DBMarshal.done('New alias created successfully.')
+        if os.path.exists(directory + '/revisions') == False:
+            os.makedirs(directory + '/revisions')
+            DBMarshal.done('Created directory ' + directory + '/revisions')
+
+        if os.path.exists(directory + '/triggers') == False:
+            os.makedirs(directory + '/triggers')
+            DBMarshal.done('Created directory ' + directory + '/triggers')
+
+        if os.path.exists(directory + '/stored-procedures') == False:
+            os.makedirs(directory + '/stored-procedures')
+            DBMarshal.done('Created directory ' + directory + '/stored-procedures')
+
+        dbm = DBMarshal(hostname, username, password, database, directory)
+        dbm.clone(alias, False)
+
+        DBMarshal.done('Config successfully saved as "' + alias + '".')
 
         return dbm
 
@@ -106,13 +121,22 @@ class DBMarshal(object):
             DBMarshal.error("Error %d: %s" % (e.args[0],e.args[1]))
 
     def __get_revisions_dir(self):
-        return self.__directory + '/revisions'
+        path = self.__directory + '/revisions'
+        if os.path.exists(path):
+            return path
+        DBMarshal.error('Directory "' + path + '" does not exist.' )
 
     def __get_sprocs_dir(self):
-        return self.__directory + '/stored-procedures'
+        path = self.__directory + '/stored-procedures'
+        if os.path.exists(path):
+            return path
+        DBMarshal.error('Directory "' + path + '" does not exist.' )
 
     def __get_triggers_dir(self):
-        return self.__directory + '/triggers'
+        path = self.__directory + '/triggers'
+        if os.path.exists(path):
+            return path
+        DBMarshal.error('Directory "' + path + '" does not exist.' )
 
     def __applied_status(self):
         """
@@ -540,7 +564,7 @@ class DBMarshal(object):
         except mysql.Error, e:
             DBMarshal.error("Error %d %s" % (e.args[0],e.args[1]))
 
-    def clone(self, alias):
+    def clone(self, alias, talk = True):
         """
         Saves the current config under a new specified alias.
         """
@@ -560,6 +584,7 @@ class DBMarshal(object):
         pickle.dump(config, f)
 
         f.close()
-
-        DBMarshal.talk('clone');
-        DBMarshal.done('Config successfully saved as "' + alias + '".')
+        
+        if talk:
+            DBMarshal.talk('clone');
+            DBMarshal.done('Config successfully saved as "' + alias + '".')

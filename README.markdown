@@ -49,7 +49,8 @@ to your PATH. Assuming you have done this, and with the following information to
     username  : The username you need to use to access this server.
     password  : The corresponding password.
     database  : The name of the schema you want to work with.
-    directory : The path at which you will keep your migration files.
+    directory : The path at which you will keep your migration files. This will be created for you
+                if it doesn't exist.
     alias     : A handy name with which you can reference these settings later. Use 'default' if you
                 don't want to bother typing it in later.
 
@@ -76,8 +77,8 @@ Your migrations directory therefore should be structured like this -
         triggers/
         revisions/
 
-If the three required subdirectories do not exist when you `dbmarshal init` they will be created
-for you.
+If the required directory structure does not exist when you `dbmarshal init` it will be created for 
+you.
 
 ###Stored Procedures and Triggers###
 
