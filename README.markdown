@@ -20,32 +20,27 @@ from static (i.e. not numerically named) scripts. This has the advantage that yo
 and read the source of all your triggers and sprocs, and make any changes without having to drop and
 recreate the item concerned.
 
-dbmarshal does not provision for undoing migrations, but does *attempt* to roll back if things go
+dbmarshal does not provision for undoing migrations, but can *attempt* to roll back if things go
 wrong -see **Transactions** below.
 
 Requirements
 ------------
 
-The following describes how to start using dbmarshal in Ubuntu. I imagine these steps are broadly
-similar for other linux flavours.
+The install script will install everything you need to run dbmarshal on Ubuntu. For other platforms, 
+you'll need to find a means of installing the following...
 
-You will need...
+*Python*, the *MySQLdb* Python package and the *sqlparse* Python package.
 
-*Python*
+*Python* and *MySQLdb* are readily available in your favourite package manager.
 
-The following installs Python along with a popular MySQL library.
-
-    sudo apt-get install python python-mysqldb
-
-*sqlparse*
-
-This is a Python package for parsing SQL. See http://code.google.com/p/python-sqlparse/
+See http://code.google.com/p/python-sqlparse/ for ways to get hold of *sqlparse*.
 
 Configuration
 -------------
 
 Clone or otherwise acquire the dbmarshal source. Life will become easier if you add this directory
-to your PATH. Assuming you have done this, and with the following information to hand...
+to your PATH. This is done automatically if you use the install script. Assuming you have done 
+this, and with the following information to hand...
 
 
     hostname  : The hostname of the database server you want to work with.
@@ -86,7 +81,7 @@ you.
 ###Stored Procedures and Triggers###
 
 These are SQL scripts that create either stored procedures or triggers, and can be named whatever
-you like, as long as you use and `.sql` suffix. It is probably a good idea name the file after the
+you like, as long as you use an `.sql` suffix. It is probably a good idea name the file after the
 trigger or stored procedure that it creates, and it is certainly a bad idea to create more than one
 of anything in any one file.
 
@@ -153,4 +148,4 @@ anyone is likely to do with a tool such as dbmarshal is probably not going to be
 To keep things simple, dbmarshal leaves transactions up to you: if you want a revision to use a
 transaction, surround it with `BEGIN` and `COMMIT`. dbmarshal *will* call `ROLLBACK` in the event
 of a revision failing, but unless you have explicitly started a transaction this will not have any
-affect.
+effect.
