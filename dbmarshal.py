@@ -376,7 +376,8 @@ class DBMarshal(object):
                 statements = sqlparse.split(migration['script'])
 
                 for statement in statements:
-                    cursor.execute(statement)
+                    if len(statement.strip()) > 0:
+                        cursor.execute(statement)
 
                 cursor.execute(log_update_two)
 
