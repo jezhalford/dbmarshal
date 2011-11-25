@@ -5,6 +5,7 @@ import pickle
 import MySQLdb as mysql
 from warnings import filterwarnings, resetwarnings
 import sqlparse
+from time import time
 
 class DBMarshal(object):
 
@@ -24,6 +25,7 @@ class DBMarshal(object):
         self.__password = password
         self.__database = database
         self.__directory = os.path.abspath(directory)
+        self.__start_time = 0;
 
     @staticmethod
     def factory(hostname, username, password, database, directory):
@@ -362,7 +364,7 @@ class DBMarshal(object):
             cursor = conn.cursor()
 
             for migration in migrations:
-                DBMarshal.talk(None, ["Applying revision: " + migration['name'] + "..."])
+                print "\tApplying revision: " + migration['name'] + "...",
 
                 log_update_one = """
                 INSERT INTO `dbmarshal_log` SET `change_number` = %d, `description` = '%s';
@@ -381,6 +383,8 @@ class DBMarshal(object):
 
                 cursor.execute(log_update_two)
 
+                print 'OK \t\t\t(%07.3f sec)' % (round(time() - self.__start_time, 3))
+
         except mysql.Error, e:
             try:
                 conn.rollback()
@@ -396,7 +400,7 @@ class DBMarshal(object):
 
     def __statics_mismatch(self):
         """
-        Returns true if there are no static migration files but static objects exist in the daatabse
+        Returns true if there are no static migration files but static objects exist in the database
         """
         statics = self.__get_static_status()
         applied_statics = self.__get_statics()
@@ -449,6 +453,8 @@ class DBMarshal(object):
         """
         Applies outstanding migrations to the database.
         """
+        self.__start_time = time()
+        
         self.create_log_table()
 
         if self.__statics_mismatch():
@@ -466,31 +472,31 @@ class DBMarshal(object):
                 if answer == 'N':
                     exit(0)
 
-            
-
         applied = self.__applied_status()
         outstanding_migrations = self.__get_revisions(applied+1)
 
         DBMarshal.talk("apply",
             ["Running migration scripts..."])
 
+        
+
         drop_feedback = self.__drop_statics()
 
-        DBMarshal.talk(None, [("Dropped %d stored procedures and %s triggers." %
-                     (drop_feedback['sprocs'], drop_feedback['triggers']))])
+        DBMarshal.talk(None, [("Dropped %d stored procedures and %s triggers \t\t(%07.3f sec)" %
+                     (drop_feedback['sprocs'], drop_feedback['triggers'], round(time() - self.__start_time, 3)))])
 
         create_feedback = self.__create_statics()
 
-        DBMarshal.talk(None, [("Created %d stored procedures and %s triggers." %
-                     (create_feedback['sprocs'], create_feedback['triggers']))])
+        DBMarshal.talk(None, [("Created %d stored procedures and %s triggers \t\t(%07.3f sec)" %
+                     (create_feedback['sprocs'], create_feedback['triggers'], round(time() - self.__start_time, 3)))])
 
         if len(outstanding_migrations) == 0:
             DBMarshal.talk(None, ['There are no undeployed revisions available.'])
         else:
-            DBMarshal.talk(None, ['Applying revisions'])
+            DBMarshal.talk(None, ['Applying revisions...'])
             self.__run_scripts(outstanding_migrations)
 
-        DBMarshal.done('Database updated successfully.')
+        DBMarshal.done('Database successfully updated. \t\t\t\t(%07.3f sec)' % (round(time() - self.__start_time, 3)))
 
     def describe(self):
         """
