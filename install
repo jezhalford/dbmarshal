@@ -2,7 +2,7 @@
 
 chmod +x dbmarshal
 
-if ! sudo apt-get install python python-mysqldb python-setuptools
+if ! sudo apt-get install python python-mysqldb python-setuptools -y
 then
     exit 1
 fi
