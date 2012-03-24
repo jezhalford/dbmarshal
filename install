@@ -1,5 +1,9 @@
 #!/bin/bash
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $DIR
+pwd
+
 chmod +x dbmarshal
 
 if ! sudo apt-get install python python-mysqldb python-setuptools -y
@@ -18,11 +22,6 @@ then
 fi
 
 mydir=`pwd`
-pathline="PATH=\"$mydir:\$PATH\""
-temp=`grep -v "$pathline" ~/.bashrc`
-echo -e "$temp" > ~/.bashrc
-echo "$pathline" >> ~/.bashrc
-echo "export PATH" >> ~/.bashrc
-source ~/.bashrc
+sudo ln -s "$mydir/dbmarshal" "/usr/bin/dbmarshal"
 echo
 echo "Finished installing dbmarshal."
