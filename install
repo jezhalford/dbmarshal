@@ -6,7 +6,7 @@ pwd
 
 chmod +x dbmarshal
 
-if ! sudo apt-get install python python-mysqldb python-setuptools -y
+if ! sudo apt-get install python python-mysqldb python-setuptools python-sqlparse -y
 then
     exit 1
 fi
@@ -16,7 +16,27 @@ then
     exit 1
 fi
 
-if ! sudo pip install sqlparse
+if ! sudo pip install six
+then
+    exit 1
+fi
+
+if ! sudo pip install urllib3
+then
+    exit 1
+fi
+
+if ! sudo pip install packaging
+then
+    exit 1
+fi
+
+if ! sudo pip install appdirs
+then
+    exit 1
+fi
+
+if ! sudo pip install setuptools --no-use-wheel --upgrade
 then
     exit 1
 fi
